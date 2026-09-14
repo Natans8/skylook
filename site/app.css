@@ -139,7 +139,14 @@ button { cursor: pointer; }
 }
 .caption b { color: var(--lit); font-weight: 500; }
 /* each cell is an item of a wrapping row, so a narrow page moves a whole cell down rather than breaking its words */
-.caption { display: flex; flex-wrap: wrap; align-items: baseline; }
+.caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  /* the caption keeps the plate's left edge but not its measure: one line wherever the page has the room */
+  width: max-content;
+  max-width: calc(100vw - 48px);
+}
 .caption > * { white-space: nowrap; }
 /* the caption's fields are cells, divided by a drawn rule */
 .caption > * + *::before {
