@@ -6,9 +6,9 @@
  * does to the world, what to copy), and the sheets that are summoned and dismissed. The browsing of every sky
  * lives in `index.html`, so this page is for looking at one closely.
  */
-import { Sky } from "./sky.js?v=f2df4334b3";
-import { commandButtons, effectCommands, listenForCommands, skyCommands } from "./commands.js?v=f2df4334b3";
-import { readable } from "./lit.js?v=f2df4334b3";
+import { Sky } from "./sky.js?v=d719e56a33";
+import { commandButtons, effectCommands, listenForCommands, skyCommands } from "./commands.js?v=d719e56a33";
+import { readable } from "./lit.js?v=d719e56a33";
 
 const $ = (id) => document.getElementById(id);
 const DAY = Sky.DAY;
@@ -126,7 +126,7 @@ function paintPlate() {
   $("detail-text").textContent = describe(id);
   paintTake();
   paintWorld();
-  bandImage = null;
+  bandDirty = true;
   writeHash();
 }
 
@@ -185,97 +185,120 @@ function paintWorld(light = lastLight) {
 
 const band = $("band");
 const bandCtx = band.getContext("2d");
-let bandImage = null;
-const AXIS = 13;
+const bandWrap = $("band-wrap");
+const bandCursor = $("band-cursor");
+let bandDirty = true;
+let cursorAt = -1;
 
 // the band is a contact sheet of the day: one real view per sample, each stretched across its share of the width
 const SAMPLES = 48;
 const SAMPLE_WIDTH = 64;
 const SAMPLE_HEIGHT = 36;
+const STOP_NOTCH = 4; // CSS px: the notch a LightData stop leaves along the band's foot
 
 /**
- * Draw the sky's whole day, the sun and moon arcs over it, and its LightData stops notched below.
- *
- * The columns are renders, not colours: a preset's own light says little about a sky whose brightness comes from
- * a painted dome, so each column is the view itself at that hour, one pixel wide. It is built once per preset and
- * kept, and every frame puts it back and draws the cursor over it, so the picture and the control are one thing.
+ * Keep the day band current: draw the sky's day when the preset or the size changes, and move the cursor when the
+ * hour does. The canvas is drawn once at the screen's own density, and the cursor and the hours are page elements
+ * over it, so nothing is repainted each frame and nothing smears.
  */
 function drawBand() {
   const param = Sky.state.light?.params[Sky.state.paramId];
   if (!param) return;
-  const width = band.clientWidth, height = band.clientHeight;
-  if (width < 8 || height <= AXIS) return; // before the first layout there is nothing to draw into
-  if (band.width !== width || band.height !== height) { band.width = width; band.height = height; bandImage = null; }
-  if (!bandImage) {
-    // a texture or a colour-grading table still arriving would draw as flat grey, so the day waits for the sky
-    const pending = Sky.pending();
-    if (pending.texPending || pending.loading) return;
-    const sky = height - AXIS;
-    const sample = document.createElement("canvas");
-    sample.width = SAMPLE_WIDTH;
-    sample.height = SAMPLE_HEIGHT;
-    const into = sample.getContext("2d");
-    const strip = document.createElement("canvas");
-    strip.width = SAMPLES;
-    strip.height = SAMPLE_HEIGHT;
-    const onto = strip.getContext("2d");
-    const now = performance.now();
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.round(band.clientWidth * ratio), height = Math.round(band.clientHeight * ratio);
+  if (width < 8 || height < 8) return; // before the first layout there is nothing to draw into
+  if (band.width !== width || band.height !== height) { band.width = width; band.height = height; bandDirty = true; }
+  // a texture or a colour-grading table still arriving would draw as flat grey, so the day waits for the sky
+  if (bandDirty && !Sky.pending().texPending && !Sky.pending().loading) paintBand(param, width, height, ratio);
+  const at = Sky.state.time / DAY;
+  if (at !== cursorAt) {
+    cursorAt = at;
+    bandCursor.style.left = `${(at * 100).toFixed(3)}%`;
+    bandWrap.setAttribute("aria-valuenow", String(Math.round(Sky.state.time)));
+    bandWrap.setAttribute("aria-valuetext", hhmm(Sky.state.time));
+  }
+}
+
+/**
+ * Paint the sky's whole day, the sun and the moon over it, and its LightData stops along the foot.
+ *
+ * The columns are renders, not colours: a preset's own light says little about a sky whose brightness comes from a
+ * painted dome, so each column is the view at that hour. A sample faces the way the page does but is tilted up by
+ * half the client's field of view, so the horizon is its lower edge and the ground stays out of the band. The sun
+ * and the moon are drawn only while they are up, from the horizon at the foot to overhead at the top.
+ */
+function paintBand(param, width, height, ratio) {
+  const sample = document.createElement("canvas");
+  sample.width = SAMPLE_WIDTH;
+  sample.height = SAMPLE_HEIGHT;
+  const into = sample.getContext("2d");
+  const strip = document.createElement("canvas");
+  strip.width = SAMPLES;
+  strip.height = SAMPLE_HEIGHT;
+  const onto = strip.getContext("2d");
+  const now = performance.now();
+  const kept = { pitch: Sky.LOOK.pitch, fov: Sky.fov() };
+  Sky.setFov(Sky.DEFAULT_FOV);
+  Sky.LOOK.pitch = (Sky.DEFAULT_FOV / 2) * (Math.PI / 180);
+  try {
     for (let i = 0; i < SAMPLES; i++) {
       const frame = Sky.renderLook(SAMPLE_WIDTH, ((i + 0.5) / SAMPLES) * DAY, now, SAMPLE_HEIGHT);
       into.putImageData(new ImageData(frame.rgba, frame.width, frame.height), 0, 0);
       onto.drawImage(sample, 0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT, i, 0, 1, SAMPLE_HEIGHT);
     }
-    bandCtx.drawImage(strip, 0, 0, SAMPLES, SAMPLE_HEIGHT, 0, 0, width, sky);
-
-    // the sun and the moon, as high as they climb: the reason one hour of a sky looks nothing like another
-    for (const [path, colour] of [[Sky.sunDirection, "#ffe28a"], [(_, time) => Sky.moonDirection(time), "#a8c6ff"]]) {
-      bandCtx.beginPath();
-      for (let x = 0; x < width; x++) {
-        const direction = path(param, (x / width) * DAY);
-        const elevation = (Math.asin(clamp(direction.z, -1, 1)) * 180) / Math.PI;
-        const y = sky * (0.5 - elevation / 180);
-        if (x === 0) bandCtx.moveTo(x, y); else bandCtx.lineTo(x, y);
-      }
-      bandCtx.strokeStyle = colour;
-      bandCtx.globalAlpha = 0.55;
-      bandCtx.lineWidth = 1.5;
-      bandCtx.stroke();
-      bandCtx.globalAlpha = 1;
-    }
-
-    // the axis: the hours, and a notch per LightData stop, which is where the sky actually turns
-    bandCtx.fillStyle = "#0d0f16";
-    bandCtx.fillRect(0, sky, width, AXIS);
-    bandCtx.fillStyle = "#98a1b4";
-    bandCtx.font = "9px 'JetBrains Mono', monospace";
-    for (let hour = 0; hour <= 24; hour += 3) {
-      const x = (hour / 24) * width;
-      bandCtx.fillRect(x, sky, 1, hour % 6 === 0 ? 4 : 2);
-      if (hour % 6 === 0 && hour < 24) bandCtx.fillText(String(hour).padStart(2, "0"), x + 3, height - 3);
-    }
-    bandCtx.fillStyle = "#ffffff59";
-    for (const stop of param.ramp) bandCtx.fillRect((stop.time / DAY) * width, sky - 4, 1, 4);
-    bandImage = bandCtx.getImageData(0, 0, width, height);
-  } else {
-    bandCtx.putImageData(bandImage, 0, 0);
+  } finally {
+    Sky.LOOK.pitch = kept.pitch;
+    Sky.setFov(kept.fov);
   }
 
-  const x = (Sky.state.time / DAY) * band.width;
-  bandCtx.fillStyle = accent;
-  bandCtx.fillRect(x - 1, 0, 2, band.height - AXIS);
-  bandCtx.beginPath();
-  bandCtx.moveTo(x - 5, 0); bandCtx.lineTo(x + 5, 0); bandCtx.lineTo(x, 6);
-  bandCtx.fill();
+  bandCtx.save();
+  bandCtx.clearRect(0, 0, width, height);
+  bandCtx.imageSmoothingEnabled = true;
+  bandCtx.imageSmoothingQuality = "high";
+  bandCtx.drawImage(strip, 0, 0, SAMPLES, SAMPLE_HEIGHT, 0, 0, width, height);
+
+  // the sun and the moon while they are up: the reason one hour of a sky looks nothing like another
+  bandCtx.lineWidth = 1.5 * ratio;
+  bandCtx.lineCap = "round";
+  bandCtx.lineJoin = "round";
+  bandCtx.shadowColor = "#000000aa";
+  bandCtx.shadowBlur = 3 * ratio;
+  for (const [path, colour] of [[Sky.sunDirection, "#ffe6a3"], [(_, time) => Sky.moonDirection(time), "#c4d8ff"]]) {
+    bandCtx.beginPath();
+    let drawing = false;
+    for (let x = 0; x <= width; x += ratio) {
+      const direction = path(param, (x / width) * DAY);
+      const elevation = (Math.asin(clamp(direction.z, -1, 1)) * 180) / Math.PI;
+      if (elevation < 0) { drawing = false; continue; }
+      const y = height - (Math.min(elevation, 90) / 90) * height;
+      if (drawing) bandCtx.lineTo(x, y); else bandCtx.moveTo(x, y);
+      drawing = true;
+    }
+    bandCtx.strokeStyle = colour;
+    bandCtx.globalAlpha = 0.9;
+    bandCtx.stroke();
+  }
+
+  // a notch for each LightData stop along the foot, which is where the sky actually turns
+  bandCtx.shadowBlur = 0;
+  bandCtx.globalAlpha = 0.55;
+  bandCtx.fillStyle = "#ffffff";
+  const notchWidth = Math.max(1, Math.round(ratio));
+  for (const stop of param.ramp) {
+    bandCtx.fillRect(Math.round((stop.time / DAY) * width), height - STOP_NOTCH * ratio, notchWidth, STOP_NOTCH * ratio);
+  }
+  bandCtx.restore();
+  bandDirty = false;
 }
 
 let scrubbing = false;
 const scrubTo = (event) => {
-  const box = band.getBoundingClientRect();
+  const box = bandWrap.getBoundingClientRect();
   Sky.state.time = clamp(((event.clientX - box.left) / box.width) * DAY, 0, DAY - 1);
 };
-band.addEventListener("pointerdown", (event) => { scrubbing = true; band.setPointerCapture(event.pointerId); scrubTo(event); });
-band.addEventListener("pointermove", (event) => { if (scrubbing) scrubTo(event); });
-band.addEventListener("pointerup", () => { scrubbing = false; writeHash(); });
+bandWrap.addEventListener("pointerdown", (event) => { scrubbing = true; bandWrap.setPointerCapture(event.pointerId); scrubTo(event); });
+bandWrap.addEventListener("pointermove", (event) => { if (scrubbing) scrubTo(event); });
+bandWrap.addEventListener("pointerup", () => { scrubbing = false; writeHash(); });
 
 // ---------------------------------------------------------------- the interface is lit by the sky it shows
 
@@ -606,7 +629,7 @@ document.addEventListener("keydown", (event) => {
     case "ArrowLeft": Sky.state.time = (Sky.state.time - step + DAY) % DAY; break;
     case "ArrowRight": Sky.state.time = (Sky.state.time + step) % DAY; break;
     case "p": setView(!Sky.state.pano); break;
-    case "r": Sky.LOOK.yaw = 0; Sky.LOOK.pitch = 0.15; Sky.setFov(73.74); writeHash(); break;
+    case "r": Sky.LOOK.yaw = 0; Sky.LOOK.pitch = 0.15; Sky.setFov(Sky.DEFAULT_FOV); writeHash(); break;
     case "s": if (!Sky.state.pano) toggleSheet("effects"); break;
     case "e": toggleSheet("export"); break;
     case "d": toggleSheet("detail"); break;
@@ -656,7 +679,7 @@ function fitSky() {
   if (root.style.getPropertyValue("--console") !== consolePx) root.style.setProperty("--console", consolePx);
   document.body.classList.toggle("panorama", Sky.state.pano);
 }
-window.addEventListener("resize", () => { fitSky(); bandImage = null; });
+window.addEventListener("resize", () => { fitSky(); bandDirty = true; });
 
 // ---------------------------------------------------------------- boot
 

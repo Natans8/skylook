@@ -2,9 +2,9 @@
 // BLP textures. The library parses the MD20 body and the skin profile; this file walks the chunk table around
 // them (MD21, TXID, SFID), reads the skin's 24-byte batch records for the raw shader id the library folds into
 // its own enum, and turns the result into the shape the renderers already draw.
-import * as THREE from "./lib/three.module.js?v=f2df4334b3";
-import { M2Model, M2SkinProfile, Blp, BLP_IMAGE_FORMAT } from "./lib/wowser-format.js?v=f2df4334b3";
-import { RAW_URL } from "./assets.js?v=f2df4334b3";
+import * as THREE from "./lib/three.module.js?v=d719e56a33";
+import { M2Model, M2SkinProfile, Blp, BLP_IMAGE_FORMAT } from "./lib/wowser-format.js?v=d719e56a33";
+import { RAW_URL } from "./assets.js?v=d719e56a33";
 
 const rawUrl = (build, fid) => RAW_URL.replace("{build}", build).replace("{fid}", String(fid));
 

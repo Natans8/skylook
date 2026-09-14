@@ -2,12 +2,12 @@
 // approximate celestial layer, drawn the way the client layers them, for every roster build from Classic Era to
 // Midnight. It owns the canvas and nothing else on the page: `app.js` is the interface, and reaches everything
 // through the `Sky` export at the foot of this file.
-import * as THREE from "./lib/three.module.js?v=f2df4334b3";
-import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=f2df4334b3";
-import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=f2df4334b3";
-import { cloudNoise } from "./ts.raster.js?v=f2df4334b3";
-import { gifEncoder, videoEncoder } from "./encode.js?v=f2df4334b3";
-import { TABLES_URL } from "./assets.js?v=f2df4334b3";
+import * as THREE from "./lib/three.module.js?v=d719e56a33";
+import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=d719e56a33";
+import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=d719e56a33";
+import { cloudNoise } from "./ts.raster.js?v=d719e56a33";
+import { gifEncoder, videoEncoder } from "./encode.js?v=d719e56a33";
+import { TABLES_URL } from "./assets.js?v=d719e56a33";
 
 const DAY = 2880; // the client's day, in half-minutes
 const DEFAULT_BUILD = "9.2.7.45745";
@@ -1436,7 +1436,7 @@ async function boot(want = {}) {
 
 /** The engine, as the interface sees it. */
 export const Sky = {
-  state, LOOK, camera, canvas, DAY, DEFAULT_BUILD, PANO_ASPECT,
+  state, LOOK, camera, canvas, DAY, DEFAULT_BUILD, DEFAULT_FOV, PANO_ASPECT,
   boot, loadBuild, loadParam, applyScreen, clearScreen, chooseBody, swapSkybox,
   evalLight, sunDirection, moonDirection: (time) => skyVector(MOON_PHI, MOON_THETA, time),
   hex, rgb,

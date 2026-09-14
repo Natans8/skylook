@@ -22,8 +22,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://wago.tools" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="./base.css?v=f2df4334b3">
-<link rel="stylesheet" href="./app.css?v=f2df4334b3">
+<link rel="stylesheet" href="./base.css?v=d719e56a33">
+<link rel="stylesheet" href="./app.css?v=d719e56a33">
 </head>
 <body class="panorama">
 <canvas id="gl" aria-label="The sky, drawn. Drag to look around."></canvas>
@@ -56,7 +56,14 @@
   <div class="day">
     <button type="button" id="play" class="play" aria-label="Play the day"><span class="glyph">▶</span></button>
     <time id="clock">12:00</time>
-    <canvas id="band" class="band" aria-label="The sky through the day. Drag to set the hour."></canvas>
+    <div class="band" id="band-wrap" role="slider" tabindex="0" aria-label="Hour of the day. Drag, or use the arrow keys." aria-valuemin="0" aria-valuemax="2879" aria-valuenow="1440" aria-valuetext="12:00">
+      <canvas id="band" aria-hidden="true"></canvas>
+      <span class="band-cursor" id="band-cursor" aria-hidden="true"></span>
+      <div class="band-scale" aria-hidden="true">
+        <i style="--at: 0.125"></i><i class="major" style="--at: 0.25"></i><i style="--at: 0.375"></i><i class="major" style="--at: 0.5"></i><i style="--at: 0.625"></i><i class="major" style="--at: 0.75"></i><i style="--at: 0.875"></i>
+        <span class="first" style="--at: 0">00</span><span style="--at: 0.25">06</span><span style="--at: 0.5">12</span><span style="--at: 0.75">18</span>
+      </div>
+    </div>
     <div class="speed">
       <label for="speed">Speed</label>
       <input type="range" id="speed" min="-1" max="3" step="0.02" value="1">
@@ -162,7 +169,7 @@
 
 <script type="module">
   // the engine needs WebGL 2; without it the import fails, and the page says so rather than waiting forever
-  import("./app.js?v=f2df4334b3").catch((error) => {
+  import("./app.js?v=d719e56a33").catch((error) => {
     console.error(error);
     document.getElementById("waiting").hidden = true;
     document.getElementById("sky-name").textContent = "The sky could not be drawn";
