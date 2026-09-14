@@ -2,12 +2,12 @@
 // approximate celestial layer, drawn the way the client layers them, for every roster build from Classic Era to
 // Midnight. It owns the canvas and nothing else on the page: `app.js` is the interface, and reaches everything
 // through the `Sky` export at the foot of this file.
-import * as THREE from "./lib/three.module.js";
-import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js";
-import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js";
-import { cloudNoise } from "./ts.raster.js";
-import { gifEncoder, videoEncoder } from "./encode.js";
-import { TABLES_URL } from "./assets.js";
+import * as THREE from "./lib/three.module.js?v=f2df4334b3";
+import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=f2df4334b3";
+import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=f2df4334b3";
+import { cloudNoise } from "./ts.raster.js?v=f2df4334b3";
+import { gifEncoder, videoEncoder } from "./encode.js?v=f2df4334b3";
+import { TABLES_URL } from "./assets.js?v=f2df4334b3";
 
 const DAY = 2880; // the client's day, in half-minutes
 const DEFAULT_BUILD = "9.2.7.45745";
@@ -125,7 +125,8 @@ function sunDirection(param, t) {
 
 // three.js scene
 const canvas = document.getElementById("gl");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+// a laptop with two graphics chips is asked for the stronger one; the browser decides, and may still refuse
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" });
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.autoClear = false;
 const scene = new THREE.Scene();
@@ -874,19 +875,21 @@ function screenPass(w, h, drawGraded) {
 const PANO_LO = -4, PANO_HI = 64; // degrees of elevation the strip spans
 const mercY = (deg) => Math.log(Math.tan(Math.PI / 4 + (deg * Math.PI / 180) / 2));
 const PANO_ASPECT = (2 * Math.PI) / (mercY(PANO_HI) - mercY(PANO_LO));
-const cubeTarget = new THREE.WebGLCubeRenderTarget(1024);
+const PAGE_CUBE = 1024; // per face: what the page's own panorama is captured into
+let cubeTarget = new THREE.WebGLCubeRenderTarget(PAGE_CUBE);
 const cubeCam = new THREE.CubeCamera(0.1, 20000, cubeTarget);
 const panoScene = new THREE.Scene();
 const panoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const panoQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-  uniforms: { cube: { value: cubeTarget.texture }, yaw0: { value: 0 }, ...lutUniforms() },
+  uniforms: { cube: { value: cubeTarget.texture }, yaw0: { value: 0 }, span: { value: 1 }, ...lutUniforms() },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
   fragmentShader: `
     // Mercator strip from -4 to 64 degrees of elevation: conformal, so the moon stays round; yaw0 scrolls it
-    uniform samplerCube cube; uniform float yaw0; varying vec2 vUv;
+    // span is the share of the turn the canvas shows: the whole turn is 1, a window of it on a narrow page less
+    uniform samplerCube cube; uniform float yaw0; uniform float span; varying vec2 vUv;
     ${LUT_GLSL}
     void main(){
-      float lon = (vUv.x - 0.5) * 6.28318530718 + yaw0;
+      float lon = (vUv.x - 0.5) * 6.28318530718 * span + yaw0;
       float y0 = log(tan(0.7853981634 + (PANO_LO * 0.0174532925) * 0.5));
       float y1 = log(tan(0.7853981634 + (PANO_HI * 0.0174532925) * 0.5));
       float lat = 2.0 * atan(exp(mix(y0, y1, vUv.y))) - 1.5707963268;
@@ -896,6 +899,21 @@ const panoQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderM
   depthTest: false, depthWrite: false,
 }));
 panoScene.add(panoQuad);
+
+/**
+ * Size the cube the turn is captured into for a strip `width` wide: a quarter of the width per face, rounded up to a
+ * power of two, never coarser than the page's own and never past what the card allows. A large export otherwise
+ * stretches the page's cube, which softens every model texture finer than it.
+ */
+function sizeCube(width) {
+  const limit = Math.min(4096, renderer.capabilities.maxCubemapSize);
+  const size = Math.min(limit, Math.max(PAGE_CUBE, 2 ** Math.ceil(Math.log2(Math.max(1, width / 4)))));
+  if (cubeTarget.width === size) return;
+  cubeTarget.dispose();
+  cubeTarget = new THREE.WebGLCubeRenderTarget(size);
+  cubeCam.renderTarget = cubeTarget;
+  panoQuad.material.uniforms.cube.value = cubeTarget.texture;
+}
 
 // a model is parsed once per build and file id, since several presets share one sky
 const modelCache = new Map();
@@ -1055,6 +1073,8 @@ const viewHeight = (width) => (state.pano ? stripHeight(width) : lookHeight(widt
 function renderStrip(width, time, nowMs = performance.now()) {
   return renderToImage(width, stripHeight(width), time, nowMs, (target) => {
     panoQuad.material.uniforms.yaw0.value = LOOK.yaw;
+    panoQuad.material.uniforms.span.value = 1; // a picture is always the whole turn, whatever the page shows
+    sizeCube(width);
     cubeCam.position.set(0, 0, 0);
     cubeCam.update(renderer, scene);
     renderer.setRenderTarget(target);
@@ -1330,19 +1350,27 @@ function frame(nowMs) {
 
   aimCamera();
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (canvas.width !== w || canvas.height !== h) { renderer.setSize(w, h, false); }
-  viewTarget = sized(viewTarget, w, h); postQuad.material.uniforms.view.value = viewTarget.texture;
+  // a dense screen gets its own pixels, up to two to a CSS pixel, or a phone draws the sky soft
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  if (renderer.getPixelRatio() !== ratio) renderer.setPixelRatio(ratio);
+  if (canvas.width !== Math.round(w * ratio) || canvas.height !== Math.round(h * ratio)) renderer.setSize(w, h, false);
+  const dw = Math.round(w * ratio), dh = Math.round(h * ratio);
+  viewTarget = sized(viewTarget, dw, dh); postQuad.material.uniforms.view.value = viewTarget.texture;
   camera.aspect = w / h; camera.updateProjectionMatrix();
   renderer.setRenderTarget(null);
   renderer.clear();
-  updateScreenUniforms(nowMs, w, h);
+  updateScreenUniforms(nowMs, dw, dh);
   if (state.pano) {
+    if (!LOOP) sizeCube(0); // back to the page's own cube once an export is done, and not between a loop's frames
     cubeCam.position.set(0, 0, 0);
     cubeCam.update(renderer, scene);
     renderer.setRenderTarget(null);
-    // letterbox to the strip's own aspect, or the Mercator map stops being conformal
-    const pw = Math.round(Math.min(w, h * PANO_ASPECT)), ph = Math.round(pw / PANO_ASPECT);
-    renderer.setViewport((w - pw) / 2, (h - ph) / 2, pw, ph);
+    // a canvas narrower than the strip shows a window of the turn, exactly as much of it as keeps the map conformal
+    // at that shape; a wider one letterboxes the sides, since a strip wider than the turn would repeat it
+    const span = Math.min(1, w / h / PANO_ASPECT);
+    panoQuad.material.uniforms.span.value = span;
+    const pw = span < 1 ? w : Math.round(h * PANO_ASPECT);
+    renderer.setViewport((w - pw) / 2, 0, pw, h);
     renderer.render(panoScene, panoCam);
     renderer.setViewport(0, 0, w, h);
   } else {
@@ -1350,7 +1378,7 @@ function frame(nowMs) {
     renderer.clear();
     renderer.render(scene, camera);
     renderer.setRenderTarget(null);
-    screenPass(w, h, () => renderer.render(postScene, postCam));
+    screenPass(dw, dh, () => renderer.render(postScene, postCam));
   }
   const loading = state.loading || (texPending ? `${texTotal - texPending} of ${texTotal} textures` : "");
   emit("frame", { time: state.time, playing: state.playing, loading, error: state.error, light: L, sun: sunDir, moon: moonDir, param, skybox: sb });
@@ -1408,13 +1436,14 @@ async function boot(want = {}) {
 
 /** The engine, as the interface sees it. */
 export const Sky = {
-  state, LOOK, camera, canvas, DAY, DEFAULT_BUILD,
+  state, LOOK, camera, canvas, DAY, DEFAULT_BUILD, PANO_ASPECT,
   boot, loadBuild, loadParam, applyScreen, clearScreen, chooseBody, swapSkybox,
   evalLight, sunDirection, moonDirection: (time) => skyVector(MOON_PHI, MOON_THETA, time),
   hex, rgb,
   renderView, renderStrip, renderLook, renderLoop, exportLoop, toPng, stem, loopClocks,
   setFov: (deg) => { camera.fov = clamp(deg, 20, 120); },
   fov: () => camera.fov,
+  panoSpan: () => panoQuad.material.uniforms.span.value,
   pause: (on) => { paused = on; },
   pending: () => ({ texPending, texTotal, loading: state.loading }),
   on(event, fn) {

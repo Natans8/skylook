@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Skylook</title>
 <meta name="description" content="A World of Warcraft sky drawn in the browser through its whole day, with the Epsilon commands that put it in the game.">
 <meta name="theme-color" content="#07080c">
@@ -10,25 +10,37 @@
 <meta property="og:site_name" content="Skylook">
 <meta property="og:title" content="Skylook">
 <meta property="og:description" content="A World of Warcraft sky drawn in the browser through its whole day, with the Epsilon commands that put it in the game.">
+<meta property="og:url" content="https://natans8.github.io/skylook/sky.html">
+<meta property="og:image" content="https://natans8.github.io/skylook/embed.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="The sky over Shadowmoon Valley at night">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://wago.tools" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="./app.css">
+<link rel="stylesheet" href="./base.css?v=f2df4334b3">
+<link rel="stylesheet" href="./app.css?v=f2df4334b3">
 </head>
-<body>
-<canvas id="gl" aria-label="the sky, drawn"></canvas>
+<body class="panorama">
+<canvas id="gl" aria-label="The sky, drawn. Drag to look around."></canvas>
 
 <header class="topbar">
-  <a class="brand" href="./index.html">Skylook <span>all skies</span></a>
-  <button type="button" class="finder" id="open-find"><span class="key">/</span> find a sky</button>
-  <select id="build" class="build" aria-label="game build"></select>
+  <a class="back" id="back" href="./index.html"><span class="arrow" aria-hidden="true">←</span>Skylook</a>
+  <button type="button" class="finder" id="open-find"><span>Find a sky</span><kbd aria-hidden="true">/</kbd></button>
+  <div class="bar-build" id="bar-build"><select id="build" class="build" aria-label="Game build"></select></div>
   <div class="spacer"></div>
-  <button type="button" class="rail" id="toggle-view" aria-pressed="false" title="the perspective view instead of the panorama (p)">perspective</button>
-  <button type="button" class="rail" id="open-effects" title="screen effect (s)">effect</button>
-  <button type="button" class="rail" id="open-export" title="export a picture or a loop (e)">export</button>
-  <button type="button" class="rail" id="open-detail" title="everything this preset declares (d)">detail</button>
+  <div class="segmented bar-only" role="group" aria-label="View">
+    <button type="button" data-view="pano" aria-pressed="true">Panorama</button>
+    <button type="button" data-view="look" aria-pressed="false">Perspective</button>
+  </div>
+  <button type="button" class="rail bar-only" data-sheet="effects" data-for="look" title="Screen effect (s)">Screen effect</button>
+  <button type="button" class="rail bar-only" data-sheet="export" title="Export a picture or a loop (e)">Export</button>
+  <button type="button" class="rail bar-only" data-sheet="detail" title="Everything this preset declares (d)">Details</button>
+  <button type="button" class="rail menu-only" data-sheet="menu" aria-haspopup="dialog">More</button>
 </header>
 
 <div class="plate">
@@ -37,84 +49,104 @@
   <p class="trouble" id="sky-trouble" role="alert" hidden></p>
 </div>
 
-<div class="waiting" id="waiting" role="status"><span class="spin"></span><span id="waiting-what">loading</span></div>
+<p class="drag-hint" id="drag-hint" hidden>Drag to look around</p>
+<div class="waiting" id="waiting" role="status"><span class="spin" aria-hidden="true"></span><span id="waiting-what">Loading</span></div>
 
-<section class="console" aria-label="the day and what to do with it">
+<section class="console" id="console" aria-label="The day, and the commands for this sky">
   <div class="day">
-    <button type="button" id="play" class="play" aria-label="play the day"><span class="glyph">▶</span></button>
+    <button type="button" id="play" class="play" aria-label="Play the day"><span class="glyph">▶</span></button>
     <time id="clock">12:00</time>
-    <canvas id="band" class="band" aria-label="the sky through the day; drag to set the time"></canvas>
+    <canvas id="band" class="band" aria-label="The sky through the day. Drag to set the hour."></canvas>
     <div class="speed">
-      <label for="speed">speed</label>
+      <label for="speed">Speed</label>
       <input type="range" id="speed" min="-1" max="3" step="0.02" value="1">
-      <output id="speed-read">10 min/s</output>
+      <output id="speed-read">10 minutes a second</output>
     </div>
   </div>
-
   <div class="strips">
-    <div class="world" id="world" aria-label="what this sky does to the world"></div>
-    <div class="take" id="take"></div>
+    <div class="world" id="world" aria-label="What this sky does to the world"></div>
+    <div class="commands" id="take"></div>
   </div>
 </section>
 
-<dialog class="find" id="find" closedby="any" aria-label="find a sky">
-  <input type="search" id="find-input" placeholder="a zone, a sky, a spell id, a preset id" autocomplete="off" aria-label="find a sky">
+<dialog class="sheet menu" id="menu" closedby="any" aria-labelledby="menu-title">
+  <h2 id="menu-title">More</h2>
+  <div class="menu-row">
+    <span class="menu-label" id="menu-view-label">View</span>
+    <div class="segmented" role="group" aria-labelledby="menu-view-label">
+      <button type="button" data-view="pano" aria-pressed="true">Panorama</button>
+      <button type="button" data-view="look" aria-pressed="false">Perspective</button>
+    </div>
+  </div>
+  <div class="menu-row">
+    <span class="menu-label">Build</span>
+    <div id="menu-build"></div>
+  </div>
+  <div class="menu-actions">
+    <button type="button" data-sheet="effects" data-for="look">Screen effect</button>
+    <button type="button" data-sheet="export">Export</button>
+    <button type="button" data-sheet="detail">Details</button>
+  </div>
+</dialog>
+
+<dialog class="find" id="find" closedby="any" aria-label="Find a sky">
+  <input type="search" id="find-input" placeholder="Zone, sky, spell id or preset id" autocomplete="off" spellcheck="false" aria-label="Find a sky">
   <ul class="results" id="find-results"></ul>
-  <p class="hint">Up and down to preview, enter to keep it, escape to go back</p>
+  <p class="hint">Up and down to preview, Enter to keep it, Escape to go back</p>
 </dialog>
 
 <dialog class="sheet" id="effects" closedby="any" aria-labelledby="effects-title">
   <h2 id="effects-title">Screen effect</h2>
-  <input type="search" id="effect-input" placeholder="a name, a ScreenEffect id, a spell id" autocomplete="off" aria-label="find a screen effect">
+  <input type="search" id="effect-input" placeholder="Name, ScreenEffect id or spell id" autocomplete="off" spellcheck="false" aria-label="Find a screen effect">
   <ul class="results" id="effect-results"></ul>
-  <div class="row"><button type="button" id="effect-clear">Draw none</button></div>
-  <p class="note" id="effect-note">None. An effect is drawn over the perspective view, so choosing one leaves the panorama.</p>
+  <div class="row"><button type="button" id="effect-clear">Remove the effect</button></div>
+  <p class="note" id="effect-note">None is drawn over this view.</p>
 </dialog>
 
 <dialog class="sheet" id="export" closedby="any" aria-labelledby="export-title">
   <h2 id="export-title">Export</h2>
   <div class="row">
-    <label>width <input type="number" id="export-width" value="1536" min="64" max="4096" step="64"></label>
+    <label>Width <input type="number" id="export-width" value="1536" min="64" max="4096" step="64"></label>
     <button type="button" id="save-png">Save picture</button>
     <button type="button" id="copy-png">Copy picture</button>
   </div>
-  <h3>A seamless loop</h3>
+  <h3>Seamless loop</h3>
   <div class="row">
-    <label>seconds <input type="number" id="loop-seconds" value="8" min="1" step="0.5"></label>
-    <label>fps <input type="number" id="loop-fps" value="20" min="1" max="50"></label>
-    <label>quality <input type="number" id="loop-quality" value="80" min="1" max="100"></label>
-    <label>format
-      <select id="loop-format"><option value="gif">gif</option><option value="mp4">mp4</option><option value="webm">webm</option></select>
-    </label>
+    <label>Seconds <input type="number" id="loop-seconds" value="8" min="1" step="0.5"></label>
+    <label>Frames a second <input type="number" id="loop-fps" value="20" min="1" max="50"></label>
+    <label>Quality <input type="number" id="loop-quality" value="80" min="1" max="100"></label>
   </div>
   <div class="row">
-    <label>day
-      <select id="loop-day"><option value="hold">held still</option><option value="cycle">one whole day</option></select>
+    <label>Format
+      <select id="loop-format"><option value="gif">GIF</option><option value="mp4">MP4</option><option value="webm">WebM</option></select>
     </label>
-    <label>seam
-      <select id="loop-seam"><option value="auto">auto</option><option value="snap">snap the clocks</option><option value="fade">cross-fade</option></select>
+    <label>Day
+      <select id="loop-day"><option value="hold">Held still</option><option value="cycle">One whole day</option></select>
+    </label>
+    <label>Seam
+      <select id="loop-seam"><option value="auto">Auto</option><option value="snap">Snap the clocks</option><option value="fade">Cross-fade</option></select>
     </label>
     <button type="button" id="save-loop">Save loop</button>
   </div>
-  <p class="note" id="export-note" role="status">A loop drives every animation from its frame, so its last frame runs into its first. It is drawn and encoded in this tab.</p>
+  <p class="note" id="export-note" role="status"><span data-for="pano">A picture of the panorama is always the whole turn. </span><span data-for="look">A picture of this view keeps its screen effect. </span>A loop drives every animation from its frame, so its last frame runs into its first.</p>
 </dialog>
 
 <dialog class="sheet detail" id="detail" closedby="any" aria-labelledby="detail-title">
-  <h2 id="detail-title">What this preset declares</h2>
+  <h2 id="detail-title">Details</h2>
   <pre id="detail-text"></pre>
   <h3>Layers</h3>
   <div class="layers" id="layers">
-    <label><input type="checkbox" data-layer="cone" checked> sky cone</label>
-    <label><input type="checkbox" data-layer="clouds" checked> clouds</label>
-    <label><input type="checkbox" data-layer="model" checked> skybox model</label>
-    <label><input type="checkbox" data-layer="celestialModel" checked> celestial model</label>
-    <label><input type="checkbox" data-layer="fogcone" checked> fog blend</label>
-    <label><input type="checkbox" data-layer="lut" checked> colour grading</label>
-    <label><input type="checkbox" data-layer="celestials"> sun and moon</label>
-    <label><input type="checkbox" data-layer="ground" checked> ground</label>
-    <label><input type="checkbox" data-layer="neutral"> black backdrop</label>
+    <label><input type="checkbox" data-layer="cone" checked> Sky cone</label>
+    <label><input type="checkbox" data-layer="clouds" checked> Clouds</label>
+    <label><input type="checkbox" data-layer="model" checked> Skybox model</label>
+    <label><input type="checkbox" data-layer="celestialModel" checked> Celestial model</label>
+    <label><input type="checkbox" data-layer="fogcone" checked> Fog blend</label>
+    <label><input type="checkbox" data-layer="lut" checked> Colour grading</label>
+    <label><input type="checkbox" data-layer="celestials"> Sun and moon</label>
+    <label><input type="checkbox" data-layer="ground" checked> Ground</label>
+    <label data-for="look"><input type="checkbox" data-layer="neutral"> Black backdrop</label>
   </div>
-  <div class="row"><label>celestial body <select id="body"></select></label></div>
+  <div class="row"><label>Celestial body <select id="body"></select></label></div>
   <p class="credit">
     Every model and texture is the game's own file, fetched from <a href="https://wago.tools">wago.tools</a> when a
     sky is opened. World of Warcraft is a trademark of Blizzard Entertainment, and Skylook is a fan project not
@@ -122,13 +154,15 @@
   </p>
 </dialog>
 
-<footer class="keys">
-  <span><b>/</b> find</span><span><b>space</b> play</span><span><b>arrows</b> scrub</span><span><b>p</b> panorama</span><span><b>r</b> recentre</span><span><b>s</b> effect</span><span><b>e</b> export</span><span><b>d</b> detail</span>
+<footer class="keys" aria-hidden="true">
+  <span><b>/</b> find</span><span><b>space</b> play</span><span><b>arrows</b> hour</span><span><b>p</b> view</span><span><b>r</b> recentre</span><span data-for="look"><b>s</b> effect</span><span><b>e</b> export</span><span><b>d</b> details</span>
 </footer>
+
+<div class="toast" id="toast" role="status"></div>
 
 <script type="module">
   // the engine needs WebGL 2; without it the import fails, and the page says so rather than waiting forever
-  import("./app.js").catch((error) => {
+  import("./app.js?v=f2df4334b3").catch((error) => {
     console.error(error);
     document.getElementById("waiting").hidden = true;
     document.getElementById("sky-name").textContent = "The sky could not be drawn";

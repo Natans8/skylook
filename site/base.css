@@ -1,0 +1,119 @@
+/*
+ * What the gallery and the viewer share: the palette, the three faces, and the controls both pages use.
+ *
+ * The accent is the one colour that moves. `--lit` is the light of the sky on screen: the viewer writes it every
+ * frame from the sky's own light, and each gallery card takes it from its own picture.
+ */
+
+:root {
+  color-scheme: dark;
+  --void: #07080c;
+  --plate: #0d0f16;
+  --raised: #151926;
+  --rule: #1e2230;
+  --rule-strong: #2c3244;
+  --ink: #e8eaf0;
+  --ink-dim: #98a1b4;
+  --ink-faint: #6b7489;
+  --lit: #ffcf5c;
+  --lit-ink: #14100a;
+  --serif: "Instrument Serif", Georgia, serif;
+  --sans: "Archivo", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--void);
+  color: var(--ink);
+  font: 14px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--lit); outline-offset: 2px; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* a command is a quiet chip named for what it puts in the game; the command itself is its title and its toast */
+.commands { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.commands-label {
+  margin-right: 4px;
+  font: 500 10px/1 var(--sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.command {
+  padding: 6px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  background: transparent;
+  font: 500 12px/1 var(--sans);
+  color: var(--ink);
+  white-space: nowrap;
+  transition: border-color 140ms var(--ease), background-color 140ms var(--ease), color 140ms var(--ease);
+}
+.command:hover { border-color: var(--lit); color: var(--lit); }
+.command.copied { border-color: var(--lit); background: var(--lit); color: var(--lit-ink); }
+.commands-none { font: 12px/1.4 var(--sans); color: var(--ink-dim); }
+
+/* two views of one thing, exactly one of them on */
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid #ffffff24;
+  border-radius: 999px;
+  background: #0b0d13b3;
+  backdrop-filter: blur(8px);
+}
+.segmented button {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  color: var(--ink-dim);
+  transition: background-color 160ms var(--ease), color 160ms var(--ease);
+}
+.segmented button:hover { color: var(--ink); }
+.segmented button[aria-pressed="true"] { background: var(--lit); color: var(--lit-ink); }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--toast-bottom, 24px);
+  z-index: 20;
+  max-width: min(92vw, 620px);
+  padding: 9px 16px;
+  overflow: hidden;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  background: #0b0d13f2;
+  box-shadow: 0 12px 30px #0009;
+  font: 12px/1.4 var(--mono);
+  color: var(--ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0;
+  translate: -50% 12px;
+  pointer-events: none;
+  transition: opacity 180ms var(--ease), translate 180ms var(--ease);
+}
+.toast.shown { opacity: 1; translate: -50% 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}

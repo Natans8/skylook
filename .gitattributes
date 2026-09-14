@@ -12,5 +12,6 @@
 *.wasm binary
 *.gz binary
 *.webp binary
+*.jpg binary
 site/data/versions/*/light.json.gz filter=lfs diff=lfs merge=lfs -text
 site/data/gallery/**/*.webp filter=lfs diff=lfs merge=lfs -text

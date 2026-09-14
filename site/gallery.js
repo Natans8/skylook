@@ -1,63 +1,136 @@
-/** The gallery page: one wide panorama per skybox model, and one card per distinct screen effect, each carrying
- * the Epsilon commands that reach it. The pictures and `index.json` are written by `gallery_batch.js`. */
+/**
+ * The gallery: one wide panorama per skybox model and one picture per distinct screen effect. A picture opens the
+ * viewer at the hour it shows, and a card carries the commands that put it in the game. The pictures and
+ * `index.json` are written by `gallery_batch.js`.
+ */
 
-import {CONDITIONS} from "./ts.gallerycards.js";
+import {CONDITIONS} from "./ts.gallerycards.js?v=f2df4334b3";
+import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=f2df4334b3";
+import {readable} from "./lit.js?v=f2df4334b3";
 
-const BUILD = new URLSearchParams(location.search).get("build") || "9.2.7.45745";
+const params = new URLSearchParams(location.search);
+const BUILD = params.get("build") || "9.2.7.45745";
 const $ = (id) => document.getElementById(id);
 const hhmm = (t) => `${String(Math.floor(t / 120)).padStart(2, "0")}:${String(Math.floor((t % 120) / 2)).padStart(2, "0")}`;
 
-let index;
-try {
-  const res = await fetch(`./data/gallery/${BUILD}/index.json`);
-  if (!res.ok) throw new Error(`${res.status}`);
-  index = await res.json();
-} catch {
-  $("empty").textContent = `No gallery has been drawn for ${BUILD}.`;
-  $("empty").hidden = false;
-  throw new Error(`no gallery index for ${BUILD}`);
-}
-$("build").textContent = `${index.build}   ${index.skies.length} skyboxes   ${index.effects.length} effects`;
-const picture = (kind, name) => `./data/gallery/${BUILD}/${kind}/${name}.${index.format || "png"}`;
-
-/** Copy a command, and say so on the button for a moment. */
-function copyButton(text, label = text) {
-  const b = document.createElement("button");
-  b.type = "button"; b.textContent = label; b.title = `copy ${text}`;
-  b.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      b.classList.add("done");
-      setTimeout(() => b.classList.remove("done"), 900);
-    } catch {
-      b.textContent = "copy failed";
-    }
-  });
-  return b;
-}
-
-function link(href, label) {
-  const a = document.createElement("a");
-  a.href = href; a.textContent = label;
-  return a;
-}
+const panels = {
+    skies: {tab: $("tab-skies"), panel: $("skies-panel"), list: $("skies"), count: $("n-skies"), empty: $("skies-empty"), noun: "sky"},
+    effects: {tab: $("tab-effects"), panel: $("effects-panel"), list: $("effects"), count: $("n-effects"), empty: $("effects-empty"), noun: "screen effect"},
+};
 
 function element(tag, className, text) {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-  if (text !== undefined) el.textContent = text;
-  return el;
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
 }
 
-/** The first picture on the page is the one a visitor waits for, so it loads at once; the rest wait to be scrolled to. */
+let index;
+try {
+    const res = await fetch(`./data/gallery/${BUILD}/index.json`);
+    if (!res.ok) throw new Error(`${res.status}`);
+    index = await res.json();
+} catch {
+    for (const p of Object.values(panels)) {
+        p.empty.replaceChildren(element("p", "", `No gallery has been drawn for ${BUILD}.`));
+        p.empty.hidden = false;
+    }
+    throw new Error(`no gallery index for ${BUILD}`);
+}
+
+const picture = (kind, name) => `./data/gallery/${BUILD}/${kind}/${name}.${index.format || "png"}`;
+const inViewer = (hash) => `./sky.html#b=${index.build}&${hash}`;
+
+// ---------------------------------------------------------------- each card is lit by its own sky
+
+const sampler = document.createElement("canvas");
+sampler.width = 32;
+sampler.height = 8;
+const sampling = sampler.getContext("2d", {willReadFrequently: true});
+
+/**
+ * Give a card the accent of its own picture. A sky's character is its bright, coloured part rather than its
+ * average, which is usually a muddy blue-grey, so the most colourful and brightest quarter of the samples is what
+ * is averaged and then lifted until it reads.
+ */
+function lightCard(card, img) {
+    try {
+        sampling.drawImage(img, 0, 0, sampler.width, sampler.height);
+        const data = sampling.getImageData(0, 0, sampler.width, sampler.height).data;
+        const samples = [];
+        for (let i = 0; i < data.length; i += 4) {
+            const c = [data[i] / 255, data[i + 1] / 255, data[i + 2] / 255];
+            const high = Math.max(...c), low = Math.min(...c);
+            samples.push({c, score: (high > 0 ? (high - low) / high : 0) * 0.6 + high * 0.4});
+        }
+        samples.sort((a, b) => b.score - a.score);
+        const top = samples.slice(0, Math.max(1, samples.length >> 2));
+        const mean = [0, 1, 2].map((k) => top.reduce((sum, s) => sum + s.c[k], 0) / top.length);
+        const {hex, ink} = readable(mean);
+        card.style.setProperty("--lit", hex);
+        card.style.setProperty("--lit-ink", ink);
+    } catch {
+        // a picture that cannot be read keeps the default accent
+    }
+}
+
+// ---------------------------------------------------------------- the parts of a card
+
+/** The picture that opens the viewer. The first on the page loads at once; every other waits to be scrolled near. */
 let lead = true;
-function stripImage(src, alt, width, height) {
-  const img = element("img");
-  img.src = src; img.alt = alt; img.width = width; img.height = height; img.decoding = "async";
-  if (lead) img.fetchPriority = "high";
-  else img.loading = "lazy";
-  lead = false;
-  return img;
+function shot(href, label, src, width, height) {
+    const link = element("a", "shot");
+    link.href = href;
+    link.setAttribute("aria-label", label);
+    const img = element("img");
+    img.src = src; img.alt = ""; img.width = width; img.height = height; img.decoding = "async";
+    if (lead) img.fetchPriority = "high";
+    else img.loading = "lazy";
+    lead = false;
+    link.append(img, element("span", "open", "Open in viewer"));
+    return {link, img};
+}
+
+/** The fields under a name, as cells divided by drawn rules. */
+function meta(fields) {
+    const line = element("p", "meta");
+    line.append(...fields.map((field) => element("span", "", field)));
+    return line;
+}
+
+function commandRow(commands) {
+    const row = element("div", "commands");
+    row.append(element("span", "commands-label", "Copy"), ...commandButtons(commands));
+    return row;
+}
+
+/** The rail that runs the day: a labelled notch per hour drawn, and the clock on the picture reads it out. */
+function hourRail(hours, at, show) {
+    const rail = element("div", "rail");
+    const track = element("div", "track");
+    const input = document.createElement("input");
+    input.type = "range"; input.min = "0"; input.max = String(hours.length - 1); input.step = "1";
+    input.value = String(hours.indexOf(at));
+    input.setAttribute("aria-label", "Hour of the day");
+    input.setAttribute("aria-valuetext", hhmm(at));
+    const notches = element("div", "notches");
+    const labels = element("div", "hours");
+    labels.setAttribute("aria-hidden", "true");
+    for (const t of hours) {
+        notches.append(element("i", t === at ? "on" : ""));
+        labels.append(element("span", t === at ? "on" : "", hhmm(t).slice(0, 2)));
+    }
+    input.addEventListener("input", () => {
+        const i = Number(input.value);
+        input.setAttribute("aria-valuetext", hhmm(hours[i]));
+        for (const row of [notches, labels]) {
+            for (const [k, mark] of [...row.children].entries()) mark.classList.toggle("on", k === i);
+        }
+        show(hours[i]);
+    });
+    track.append(input, notches);
+    rail.append(track, labels);
+    return rail;
 }
 
 /** A list read out for a person: the first few, then how many more there were. */
@@ -117,138 +190,155 @@ function sources(s) {
     return said;
 }
 
-/** The rail that runs the day: one notch per rendered hour, and the strip's clock is what it reads out. */
-function scrubber(hours, at, show) {
-    const box = element("div", "scrub");
-    const rail = document.createElement("input");
-    rail.type = "range"; rail.min = "0"; rail.max = String(hours.length - 1); rail.step = "1";
-    rail.value = String(hours.indexOf(at));
-    rail.setAttribute("aria-label", "the hour");
-    const notches = element("div", "notches");
-    for (const t of hours) notches.append(element("i", t === at ? "on" : ""));
-    const move = () => {
-        const i = Number(rail.value);
-        show(hours[i]);
-        for (const [k, notch] of [...notches.children].entries()) notch.classList.toggle("on", k === i);
-    };
-    rail.addEventListener("input", move);
-    box.append(rail, notches);
-    return box;
-}
+// ---------------------------------------------------------------- the cards
 
 function skyCard(s) {
-    const card = element("article", "card");
     const stem = s.name.split("/").pop().replace(/\.(mdx|m2)$/i, "");
+    const card = element("article", "card");
+    card.id = `sky-${s.skybox}`;
     card.dataset.text = [s.name, s.zones.join(" "), s.maps.join(" "), s.spells.join(" "), s.skybox, s.param, s.spawn.join(" ")].join(" ").toLowerCase();
     if (s.error || !s.hours.length) {
         card.append(element("div", "missing", `${stem}: no picture (${s.error || "not rendered"})`));
         return card;
     }
     const noon = s.hours.includes(1440) ? 1440 : s.hours[0];
-
-    const strip = element("div", "strip");
-    const img = stripImage(picture("sky", `${s.skybox}_${noon}`), stem, 1536, 375);
+    const at = (t) => inViewer(`p=${s.param}&t=${t}&yaw=${s.yaw ?? 0}`);
+    const {link, img} = shot(at(noon), `Open ${stem} in the viewer`, picture("sky", `${s.skybox}_${noon}`), 1536, 375);
+    img.addEventListener("load", () => lightCard(card, img));
     const clock = element("span", "clock", hhmm(noon));
-    strip.append(img, clock);
-    if (s.hours.length === 1) strip.append(element("span", "note", "the same at every hour"));
-    card.append(strip);
+    link.append(clock);
+    if (s.hours.length === 1) link.append(element("span", "flag", "Same at every hour"));
 
-    const bar = element("div", "bar");
-    const title = element("div", "where", stem);
-    title.title = s.name;
-    bar.append(title);
-
+    const info = element("div", "info");
+    const name = element("h3", "name", stem);
+    name.title = s.name;
+    info.append(name);
     if (s.hours.length > 1) {
-        bar.append(scrubber(s.hours, noon, (t) => {
+        info.append(hourRail(s.hours, noon, (t) => {
             img.src = picture("sky", `${s.skybox}_${t}`);
             clock.textContent = hhmm(t);
+            link.href = at(t);
         }));
     }
-
     const place = where(s);
-    const line = element("div", "place", place.head);
+    const line = element("p", "place", place.head);
     if (place.rest) line.append(" ", element("span", "when", place.rest));
     line.title = [...s.zones, ...s.maps].join("\n");
-    bar.append(line);
-
-    const said = [`LightParams ${s.param}`, `${s.params} preset${s.params === 1 ? "" : "s"}`, ...sources(s)];
-    bar.append(element("div", "meta", said.join("   ")));
-
-    const cmds = element("div", "cmds");
-    const spell = s.spells[0];
-    if (spell) {
-        cmds.append(
-            copyButton(`.phase shift area skybox ${spell}`, "area skybox"),
-            copyButton(`.phase shift zone skybox ${spell}`, "zone skybox"),
-            copyButton(`.aura ${spell}`, `.aura ${spell}`),
-            copyButton(`.cast ${spell}`, `.cast ${spell}`),
-        );
-    }
-    if (s.spawn[0]) cmds.append(copyButton(s.spawn[0], ".gob spawn"));
-    cmds.append(link(`./sky.html#b=${index.build}&p=${s.param}&t=${noon}&yaw=${s.yaw ?? 0}`, "open"));
-    bar.append(cmds);
-    card.append(bar);
+    info.append(line, meta([`LightParams ${s.param}`, `${s.params} preset${s.params === 1 ? "" : "s"}`, ...sources(s)]));
+    const commands = skyCommands(s.spells[0], s.spawn[0]);
+    if (commands.length) info.append(commandRow(commands));
+    card.append(link, info);
     return card;
 }
 
 function effectCard(e) {
-    const card = element("article", "card");
     const names = [...new Set(e.effects.map((x) => x.name))];
+    const card = element("article", "card");
+    card.id = `effect-${e.full}`;
     card.dataset.text = [names.join(" "), e.spells.join(" "), e.effects.map((x) => x.id).join(" "), e.full].join(" ").toLowerCase();
     if (e.error) {
         card.append(element("div", "missing", `${names[0]}: no picture (${e.error})`));
         return card;
     }
-    const strip = element("div", "strip");
-    strip.append(stripImage(picture("se", String(e.full)), names[0], 640, 360));
+    const {link, img} = shot(inViewer(`p=1952&t=0&se=${e.effects[0].id}&view=look`), `Open ${names[0]} in the viewer`, picture("se", String(e.full)), 640, 360);
+    img.addEventListener("load", () => lightCard(card, img));
 
-    const bar = element("div", "bar");
-    const title = element("div", "where", names[0]);
-    title.title = names.join("\n");
-    if (names.length > 1) title.append(" ", element("span", "more", `and ${names.length - 1} more`));
-
+    const info = element("div", "info");
+    const name = element("h3", "name", names[0]);
+    name.title = names.join("\n");
+    if (names.length > 1) name.append(" ", element("span", "more", `and ${names.length - 1} more`));
     const said = [`FullScreenEffect ${e.full}`, `${e.effects.length} ScreenEffect row${e.effects.length === 1 ? "" : "s"}`];
     if (e.spells.length) said.push(spellSaid(e.spells, e.spellName));
-
-    const cmds = element("div", "cmds");
-    const spell = e.spells[0];
-    if (spell) cmds.append(copyButton(`.aura ${spell}`, `.aura ${spell}`), copyButton(`.cast ${spell}`, `.cast ${spell}`));
-    cmds.append(link(`./sky.html#b=${index.build}&p=1952&t=0&se=${e.effects[0].id}&view=look`, "open"));
-
-    bar.append(title, element("div", "meta", said.join("   ")), cmds);
-    card.append(strip, bar);
+    info.append(name, meta(said));
+    const commands = effectCommands(e.spells[0]);
+    if (commands.length) info.append(commandRow(commands));
+    card.append(link, info);
     return card;
 }
 
-const skies = $("skies"), effects = $("effects");
-for (const s of index.skies) skies.append(skyCard(s));
-for (const e of index.effects) effects.append(effectCard(e));
+for (const s of index.skies) panels.skies.list.append(skyCard(s));
+for (const e of index.effects) panels.effects.list.append(effectCard(e));
+
+// ---------------------------------------------------------------- tabs, search and the address
 
 const query = $("q");
-query.value = new URLSearchParams(location.search).get("q") ?? "";
+query.value = params.get("q") ?? "";
+const arrival = location.hash.match(/^#(sky|effect)-(\d+)$/);
+let current = arrival ? (arrival[1] === "sky" ? "skies" : "effects") : params.get("tab") === "effects" ? "effects" : "skies";
 
-/** Show the cards every word matches, and keep the words in the address so a search can be shared. */
-function filter() {
-  const words = query.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  let shown = 0;
-  for (const card of [...skies.children, ...effects.children]) {
-    const hit = words.every((w) => card.dataset.text.includes(w));
-    card.hidden = !hit;
-    if (hit) shown++;
-  }
-  $("count").textContent = words.length ? `${shown} shown` : "";
-  $("empty").hidden = shown > 0;
-  const params = new URLSearchParams(location.search);
-  if (words.length) params.set("q", query.value.trim());
-  else params.delete("q");
-  const search = params.toString();
-  history.replaceState(null, "", `${location.pathname}${search ? `?${search}` : ""}`);
+/** Keep the tab and the words in the address, so a search can be shared and a reload lands where it was. */
+function writeAddress() {
+    const next = new URLSearchParams(location.search);
+    const words = query.value.trim();
+    if (words) next.set("q", words);
+    else next.delete("q");
+    if (current === "effects") next.set("tab", "effects");
+    else next.delete("tab");
+    const search = next.toString();
+    history.replaceState(null, "", `${location.pathname}${search ? `?${search}` : ""}`);
 }
-query.addEventListener("input", filter);
+
+/** Show one tab's panel. The other keeps its count, so a search that only matches over there still says so. */
+function showTab(name, {focus = false, write = true} = {}) {
+    current = name;
+    for (const [key, p] of Object.entries(panels)) {
+        const on = key === name;
+        p.tab.setAttribute("aria-selected", String(on));
+        p.tab.tabIndex = on ? 0 : -1;
+        p.panel.hidden = !on;
+    }
+    if (focus) panels[name].tab.focus();
+    if (write) writeAddress();
+}
+
+/** Show the cards every word matches, count them per tab, and give a tab with none a way out. */
+function filter({write = true} = {}) {
+    const typed = query.value.trim();
+    const words = typed.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const p of Object.values(panels)) {
+        let shown = 0;
+        for (const card of p.list.children) {
+            const hit = words.every((w) => card.dataset.text.includes(w));
+            card.hidden = !hit;
+            if (hit) shown++;
+        }
+        p.count.textContent = String(shown);
+        p.empty.hidden = shown > 0;
+        if (shown) continue;
+        p.empty.replaceChildren(element("p", "", typed ? `No ${p.noun} matches “${typed}”.` : `There is no ${p.noun} to show.`));
+        if (typed) {
+            const clear = element("button", "", "Clear the search");
+            clear.type = "button";
+            clear.addEventListener("click", () => { query.value = ""; filter(); query.focus(); });
+            p.empty.append(clear);
+        }
+    }
+    if (write) writeAddress();
+}
+
+for (const [name, p] of Object.entries(panels)) p.tab.addEventListener("click", () => showTab(name));
+panels.skies.tab.parentElement.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    showTab(current === "skies" ? "effects" : "skies", {focus: true});
+});
+query.addEventListener("input", () => filter());
 document.addEventListener("keydown", (event) => {
-  if (event.key === "/" && !(event.target instanceof Element && event.target.matches("input[type=search]"))) {
+    if (event.key !== "/" || (event.target instanceof Element && event.target.matches("input, textarea, select"))) return;
     event.preventDefault();
     query.focus();
-  }
 });
-filter();
+
+listenForCommands();
+filter({write: false});
+showTab(current, {write: false});
+
+// arriving back from the viewer lands on the card it was opened from
+if (arrival) {
+    const card = $(`${arrival[1]}-${arrival[2]}`);
+    if (card && !card.hidden) {
+        card.scrollIntoView({block: "center"});
+        card.classList.add("arrived");
+        setTimeout(() => card.classList.remove("arrived"), 2200);
+    }
+}

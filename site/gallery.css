@@ -1,0 +1,261 @@
+/*
+ * The gallery: every sky as the strip it is, one to a row, since a panorama wants the whole width. The picture is
+ * the way into the viewer, and each card is lit by its own sky.
+ */
+
+:root {
+  --strip: 4.0914; /* the Mercator strip's own aspect, -4 to 64 degrees of elevation */
+  --thumb: 14px;
+  --page: 1120px;
+}
+
+/* ---------------------------------------------------------------- the masthead */
+
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  border-bottom: 1px solid var(--rule);
+  background: var(--void);
+  background: color-mix(in srgb, var(--void) 86%, transparent);
+  backdrop-filter: blur(14px);
+}
+.masthead-inner {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 22px;
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 12px 20px;
+}
+.brand {
+  font: 400 30px/1 var(--serif);
+  letter-spacing: 0.005em;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.tabs { display: flex; gap: 4px; }
+.tab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  font: 500 13px/1 var(--sans);
+  color: var(--ink-dim);
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { border-color: var(--rule-strong); background: var(--raised); color: var(--ink); }
+.tab .n { font: 400 11px/1 var(--mono); color: var(--ink-faint); }
+.tab[aria-selected="true"] .n { color: var(--lit); }
+.tab .narrow { display: none; }
+
+.search { position: relative; justify-self: end; width: min(100%, 340px); }
+.search input {
+  width: 100%;
+  padding: 8px 36px 8px 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  background: var(--plate);
+  font: 13px/1.2 var(--sans);
+}
+.search input::placeholder { color: var(--ink-faint); }
+.search kbd {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  font: 500 11px/1 var(--mono);
+  color: var(--ink-faint);
+  translate: 0 -50%;
+  pointer-events: none;
+}
+.search input:focus ~ kbd, .search input:not(:placeholder-shown) ~ kbd { display: none; }
+
+.to-viewer { font: 500 13px/1 var(--sans); color: var(--ink-dim); text-decoration: none; white-space: nowrap; }
+.to-viewer:hover { color: var(--lit); }
+
+/* ---------------------------------------------------------------- the page */
+
+main { max-width: var(--page); margin: 0 auto; padding: 0 20px 56px; }
+.lede { max-width: 58ch; margin: 30px 0 26px; font: 400 clamp(21px, 2.3vw, 27px)/1.3 var(--serif); }
+.lede span { color: var(--ink-dim); }
+.panel-note { margin: 0 0 16px; font: 13px/1.5 var(--sans); color: var(--ink-dim); }
+
+.column { display: flex; flex-direction: column; gap: 18px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; }
+
+.card {
+  --lit: #ffcf5c;
+  --lit-ink: #14100a;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--plate);
+  scroll-margin: 110px 0;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 440px;
+  transition: border-color 240ms var(--ease), box-shadow 240ms var(--ease);
+}
+.grid .card { contain-intrinsic-size: auto 340px; }
+.card:hover { border-color: color-mix(in srgb, var(--lit) 40%, var(--rule)); }
+.card.arrived { border-color: var(--lit); box-shadow: 0 0 36px color-mix(in srgb, var(--lit) 22%, transparent); }
+
+/* the picture is the link: the whole strip opens the sky, at the hour it shows */
+.shot { position: relative; display: block; overflow: hidden; background: #000; color: #fff; text-decoration: none; }
+.shot img { display: block; width: 100%; height: auto; aspect-ratio: var(--strip); object-fit: cover; transition: scale 500ms var(--ease); }
+.grid .shot img { aspect-ratio: 16 / 9; }
+.shot:hover img { scale: 1.02; }
+.shot:focus-visible { outline-offset: -3px; }
+.shot .clock, .shot .flag { position: absolute; top: 10px; text-shadow: 0 1px 3px #000, 0 0 12px #000b; }
+.shot .clock { left: 14px; font: 500 13px/1 var(--mono); }
+.shot .flag { right: 14px; font: 500 10px/1.3 var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: #e6eaf2; }
+.shot .open {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 7px 13px;
+  border: 1px solid #ffffff30;
+  border-radius: 999px;
+  background: #07080cc4;
+  backdrop-filter: blur(6px);
+  font: 500 12px/1 var(--sans);
+  color: var(--ink);
+  opacity: 0;
+  translate: 0 4px;
+  transition: opacity 180ms var(--ease), translate 180ms var(--ease), background-color 180ms var(--ease), color 180ms var(--ease);
+}
+.shot:hover .open, .shot:focus-visible .open {
+  border-color: var(--lit);
+  background: var(--lit);
+  color: var(--lit-ink);
+  opacity: 1;
+  translate: 0 0;
+}
+@media (hover: none) { .shot .open { opacity: 1; translate: 0 0; } }
+
+.info {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 24px;
+  padding: 13px 16px 15px;
+}
+.grid .info { grid-template-columns: minmax(0, 1fr); }
+.name { grid-column: 1; margin: 0; font: 400 27px/1.1 var(--serif); letter-spacing: 0.005em; overflow-wrap: anywhere; }
+.grid .name { font-size: 22px; }
+.name .more { font: 400 12px/1 var(--sans); letter-spacing: 0.02em; color: var(--ink-dim); }
+.place { grid-column: 1 / -1; margin: 2px 0 0; font: 14px/1.45 var(--sans); }
+.place .when { color: var(--ink-dim); }
+/* the viewer caption's wrapping row of cells, its rules clipped wherever a cell starts a line */
+.meta {
+  --gap: 1.4em;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 0 0 calc(-1 * var(--gap));
+  clip-path: inset(-4px -4px -4px var(--gap));
+  font: 11px/1.7 var(--mono);
+  color: var(--ink-faint);
+}
+.meta span { position: relative; margin-left: var(--gap); }
+.meta span::before {
+  content: "";
+  position: absolute;
+  top: 0.45em;
+  left: calc(var(--gap) / -2);
+  width: 1px;
+  height: 0.8em;
+  background: var(--rule-strong);
+}
+.info .commands { grid-column: 1 / -1; margin-top: 10px; }
+
+/* the day is a notched rail, one notch per hour drawn, labelled; the clock on the picture reads it out */
+.rail { grid-column: 2; grid-row: 1; width: 220px; }
+.track { position: relative; height: var(--thumb); }
+.track input {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: var(--thumb);
+  margin: 0;
+  background: transparent;
+}
+.track input::-webkit-slider-runnable-track { height: 2px; margin-top: calc((var(--thumb) - 2px) / 2); background: var(--rule-strong); }
+.track input::-moz-range-track { height: 2px; background: var(--rule-strong); }
+.track input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc((2px - var(--thumb)) / 2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--lit);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--lit) 22%, transparent);
+}
+.track input::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 0;
+  border-radius: 50%;
+  background: var(--lit);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--lit) 22%, transparent);
+}
+.notches {
+  position: absolute;
+  inset: 0 calc(var(--thumb) / 2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.notches i { width: 1px; height: 10px; background: var(--rule-strong); }
+.notches i.on { background: var(--lit); }
+.hours { display: flex; justify-content: space-between; margin: 5px calc(var(--thumb) / 2) 0; }
+.hours span { display: flex; justify-content: center; width: 0; font: 10px/1 var(--mono); color: var(--ink-faint); white-space: nowrap; }
+.hours span.on { color: var(--lit); }
+
+.missing { padding: 14px 16px; font: 12px var(--mono); color: var(--ink-dim); }
+
+.empty { padding: 56px 0; text-align: center; color: var(--ink-dim); }
+.empty p { margin: 0 0 14px; font: 400 22px/1.3 var(--serif); color: var(--ink); }
+.empty button { padding: 8px 16px; border: 1px solid var(--rule-strong); border-radius: 999px; background: transparent; }
+.empty button:hover { border-color: var(--lit); color: var(--lit); }
+
+.colophon {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 20px 20px 40px;
+  border-top: 1px solid var(--rule);
+  font: 12px/1.6 var(--sans);
+  color: var(--ink-dim);
+}
+.colophon a { color: var(--ink); }
+
+@media (max-width: 720px) {
+  .masthead-inner { grid-template-columns: auto minmax(0, 1fr); gap: 10px 14px; padding: 10px 14px 12px; }
+  .brand { font-size: 25px; }
+  .tabs { justify-self: end; }
+  .tab { padding: 6px 11px; }
+  .tab .wide { display: none; }
+  .tab .narrow { display: inline; }
+  .search { grid-column: 1 / -1; justify-self: stretch; width: 100%; }
+  .search kbd, .to-viewer { display: none; }
+  main { padding: 0 12px 44px; }
+  .lede { margin: 20px 4px; font-size: 20px; }
+  /* a phone is too narrow for the whole turn, so a card shows its middle, which is where its sky was centred */
+  .column .shot img { aspect-ratio: 2 / 1; }
+  .info { grid-template-columns: minmax(0, 1fr); padding: 12px 14px 14px; }
+  .rail { grid-column: 1; grid-row: auto; width: 100%; margin: 6px 0 2px; }
+  .name { font-size: 24px; }
+  .colophon { padding: 18px 16px 32px; }
+}

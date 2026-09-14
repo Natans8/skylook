@@ -3,10 +3,12 @@
  * the game. The engine is `sky.js` and this file is everything a person touches.
  *
  * Three surfaces and no panel: the plate (the sky, its name, its caption), the console (the day, what the sky
- * does to the world, what to copy), and four dialogs that are summoned and dismissed. The browsing of every sky
+ * does to the world, what to copy), and the sheets that are summoned and dismissed. The browsing of every sky
  * lives in `index.html`, so this page is for looking at one closely.
  */
-import { Sky } from "./sky.js";
+import { Sky } from "./sky.js?v=f2df4334b3";
+import { commandButtons, effectCommands, listenForCommands, skyCommands } from "./commands.js?v=f2df4334b3";
+import { readable } from "./lit.js?v=f2df4334b3";
 
 const $ = (id) => document.getElementById(id);
 const DAY = Sky.DAY;
@@ -118,6 +120,9 @@ function paintPlate() {
     Object.assign(document.createElement("b"), { textContent: String(id) }),
     ...bits.map((bit) => Object.assign(document.createElement("span"), { textContent: bit })),
   );
+  // the way back lands on the gallery card this sky or effect is pictured on, when the build is the gallery's
+  const card = Sky.state.screen ? `effect-${Sky.state.screen.row.fullScreen}` : `sky-${param.skybox}`;
+  $("back").href = Sky.state.build === Sky.DEFAULT_BUILD ? `./index.html#${card}` : "./index.html";
   $("detail-text").textContent = describe(id);
   paintTake();
   paintWorld();
@@ -125,47 +130,25 @@ function paintPlate() {
   writeHash();
 }
 
-/** The commands that put this sky, or this effect, into the game. */
+/** The commands that put this sky, or the screen effect over it, into the game. */
 function paintTake() {
   const take = $("take");
-  take.replaceChildren();
   const id = Sky.state.paramId;
   const preset = lookup.presets.find((p) => p.id === id);
   const param = Sky.state.light.params[id];
-  const map = param ? epsilonMap()?.bySkybox.get(param.skybox) : null;
-  const spell = Sky.state.screen?.spell ?? preset?.spells[0];
-  if (Sky.state.screen?.spell) {
-    add(take, `.aura ${Sky.state.screen.spell}`, "the effect on you", true);
-    add(take, `.cast ${Sky.state.screen.spell}`, "cast the effect");
-  } else if (spell) {
-    add(take, `.phase shift zone skybox ${spell}`, "this zone", true);
-    add(take, `.phase shift area skybox ${spell}`, "this area");
-    add(take, `.aura ${spell}`, "on you");
-    add(take, `.cast ${spell}`, "cast it");
+  const spawn = param ? epsilonMap()?.bySkybox.get(param.skybox)?.spawn[0] : undefined;
+  // an effect is only drawn over the perspective view, so the panorama offers the sky's own commands
+  const screen = Sky.state.pano ? null : Sky.state.screen;
+  const commands = screen?.spell
+    ? [...effectCommands(screen.spell), ...skyCommands(undefined, spawn)]
+    : skyCommands(preset?.spells[0], spawn);
+  take.replaceChildren(Object.assign(document.createElement("span"), { className: "commands-label", textContent: "Copy" }));
+  if (commands.length) {
+    take.append(...commandButtons(commands));
   } else {
-    take.append(Object.assign(document.createElement("span"), { className: "note", textContent: "no spell reaches this preset" }));
+    const why = Sky.state.build === Sky.DEFAULT_BUILD ? "No spell sets this sky" : "Commands are for 9.2.7, the build Epsilon runs";
+    take.append(Object.assign(document.createElement("span"), { className: "commands-none", textContent: why }));
   }
-  if (map?.spawn.length) add(take, map.spawn[0], "as a prop");
-}
-
-/** A button that copies one command and says the command it copied. */
-function add(parent, command, label, primary = false) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = label;
-  button.title = command;
-  if (primary) button.classList.add("primary");
-  button.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(command);
-      button.textContent = "copied";
-      button.classList.add("done");
-    } catch {
-      button.textContent = "copy refused";
-    }
-    setTimeout(() => { button.textContent = label; button.classList.remove("done"); }, 1100);
-  });
-  parent.append(button);
 }
 
 /** What the preset does past the sky: the water it tints, the light the ground takes, the fog and the shadow. */
@@ -299,26 +282,21 @@ band.addEventListener("pointerup", () => { scrubbing = false; writeHash(); });
 let accent = "#ffcf5c";
 let lastLight = null;
 
-/** The accent for a light: the sun's own colour by day and moonlight by night, lifted until it reads on the panel. */
+/** The light the accent is taken from: the sun's own colour by day and moonlight by night, with the sky's top mixed in. */
 function litColour(light, sunElevation) {
   const moonlight = [0.42, 0.58, 1];
   // by day the sun's own colour, or the sky's middle when the preset leaves the sun black; by night, moonlight
   const daylight = Math.max(...light.sun) > 0.08 ? light.sun : light.middle;
   const base = sunElevation > 2 ? daylight : moonlight;
-  const mixed = base.map((c, i) => c * 0.72 + light.top[i] * 0.28);
-  const luminance = 0.2126 * mixed[0] + 0.7152 * mixed[1] + 0.0722 * mixed[2];
-  const lift = luminance > 0.004 ? Math.max(1, 0.68 / luminance) : 1;
-  return mixed.map((c) => clamp(c * lift, 0, 1));
+  return base.map((c, i) => c * 0.72 + light.top[i] * 0.28);
 }
 
 function applyAccent(light, sunElevation) {
-  const colour = litColour(light, sunElevation);
-  const hex = `#${colour.map((v) => Math.round(v * 255).toString(16).padStart(2, "0")).join("")}`;
+  const { hex, ink } = readable(litColour(light, sunElevation));
   if (hex === accent) return;
   accent = hex;
-  const luminance = 0.2126 * colour[0] + 0.7152 * colour[1] + 0.0722 * colour[2];
   document.documentElement.style.setProperty("--lit", hex);
-  document.documentElement.style.setProperty("--lit-ink", luminance > 0.5 ? "#14100a" : "#f4f7ff");
+  document.documentElement.style.setProperty("--lit-ink", ink);
 }
 
 // ---------------------------------------------------------------- finding a sky
@@ -362,6 +340,7 @@ function select(i) {
 }
 
 function openFind() {
+  closeSheets();
   findReturnTo = Sky.state.paramId;
   $("find-input").value = "";
   renderFind("");
@@ -419,7 +398,7 @@ function noteEffect() {
   const screen = Sky.state.screen;
   $("effect-note").textContent = screen
     ? `${screen.row.name}: ${EFFECT_KINDS[screen.row.effect] ?? `type ${screen.row.effect}`}${screen.spell ? `, spell ${screen.spell}` : ""}${screen.row.timeOfDay >= 0 ? `, which forces the clock to ${hhmm(screen.row.timeOfDay * 2)}` : ""}`
-    : "None. An effect is drawn over the perspective view, so choosing one leaves the panorama.";
+    : "None is drawn over this view.";
   paintTake();
   writeHash();
 }
@@ -479,7 +458,7 @@ const loopOptions = () => ({
 
 $("save-loop").addEventListener("click", () => exporting(async () => {
   try {
-    const file = await Sky.exportLoop(loopOptions(), (what) => { exportNote.textContent = what; });
+    const file = await Sky.exportLoop(loopOptions(), (what) => { exportNote.textContent = `${what[0].toUpperCase()}${what.slice(1)}`; });
     download(file.blob, file.name);
     exportNote.textContent = `Saved, ${(file.size / 1048576).toFixed(1)} MB: ${file.note}.`;
   } catch (e) {
@@ -502,22 +481,43 @@ $("body").addEventListener("change", (event) => {
 // ---------------------------------------------------------------- looking around
 
 const canvas = $("gl");
+const hint = $("drag-hint");
+try {
+  hint.hidden = localStorage.getItem("skylook.dragged") === "1";
+} catch {
+  hint.hidden = false; // storage refused: the hint shows on every visit
+}
+
 let drag = null;
-canvas.addEventListener("pointerdown", (event) => { drag = { x: event.clientX, y: event.clientY }; canvas.setPointerCapture(event.pointerId); });
+canvas.addEventListener("pointerdown", (event) => {
+  drag = { x: event.clientX, y: event.clientY };
+  canvas.setPointerCapture(event.pointerId);
+  if (!hint.hidden) {
+    hint.hidden = true;
+    try { localStorage.setItem("skylook.dragged", "1"); } catch { /* the hint comes back next visit */ }
+  }
+});
 canvas.addEventListener("pointermove", (event) => {
   if (!drag) return;
+  const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
   if (Sky.state.pano) {
-    // dragging the strip scrolls it, and one canvas width is one whole turn
-    Sky.LOOK.yaw += ((event.clientX - drag.x) / canvas.clientWidth) * Math.PI * 2;
+    // the strip follows the pointer, and the canvas's width is however much of the turn it shows
+    Sky.LOOK.yaw -= (dx / canvas.clientWidth) * Math.PI * 2 * Sky.panoSpan();
   } else {
-    Sky.LOOK.yaw -= (event.clientX - drag.x) * 0.004;
-    Sky.LOOK.pitch = clamp(Sky.LOOK.pitch + (event.clientY - drag.y) * 0.004, -1.5, 1.5);
+    // the view follows the pointer too: a pixel dragged turns it by as much as a pixel of the view spans
+    const perPixel = (Sky.fov() * Math.PI) / 180 / canvas.clientHeight;
+    Sky.LOOK.yaw += dx * perPixel;
+    Sky.LOOK.pitch = clamp(Sky.LOOK.pitch + dy * perPixel, -1.5, 1.5);
   }
   drag = { x: event.clientX, y: event.clientY };
 });
 canvas.addEventListener("pointerup", () => { drag = null; writeHash(); });
+canvas.addEventListener("pointercancel", () => { drag = null; });
 canvas.addEventListener("wheel", (event) => {
-  if (!Sky.state.pano) Sky.setFov(Sky.fov() + Math.sign(event.deltaY) * 3);
+  if (!Sky.state.pano) {
+    Sky.setFov(Sky.fov() + Math.sign(event.deltaY) * 3);
+    writeHash();
+  }
   event.preventDefault();
 }, { passive: false });
 
@@ -527,6 +527,7 @@ const play = $("play");
 function setPlaying(on) {
   Sky.state.playing = on;
   play.setAttribute("aria-pressed", String(on));
+  play.setAttribute("aria-label", on ? "Pause the day" : "Play the day");
   play.querySelector(".glyph").textContent = on ? "❙❙" : "▶";
 }
 play.addEventListener("click", () => setPlaying(!Sky.state.playing));
@@ -537,7 +538,7 @@ $("speed").addEventListener("input", (event) => {
   $("speed-read").value = speedLabel(Sky.state.speed);
 });
 
-// ---------------------------------------------------------------- dialogs and keys
+// ---------------------------------------------------------------- the view, the sheets and the keys
 
 // a browser without the closedby attribute gets light dismiss by hand: a click on the backdrop lands on the dialog itself
 if (!("closedBy" in HTMLDialogElement.prototype)) {
@@ -551,36 +552,62 @@ if (!("closedBy" in HTMLDialogElement.prototype)) {
   }
 }
 
-const viewButton = $("toggle-view");
-/** Switch between the panorama and the perspective view, from the button or the key. */
-function toggleView() {
-  Sky.state.pano = !Sky.state.pano;
+/** Show the panorama or the perspective view, from either switch or the key. */
+function setView(pano) {
+  Sky.state.pano = pano;
   writeHash();
 }
-viewButton.addEventListener("click", toggleView);
 
-const sheets = { effects: $("effects"), export: $("export"), detail: $("detail") };
+const viewButtons = [...document.querySelectorAll("[data-view]")];
+/** Every view switch on the page says which view is on, including when a screen effect turned the panorama off. */
+let paintedPano = null;
+function paintView() {
+  if (paintedPano !== Sky.state.pano) {
+    paintedPano = Sky.state.pano;
+    // the commands and the address follow the view, including when a screen effect is what switched it
+    paintTake();
+    writeHash();
+  }
+  for (const button of viewButtons) {
+    const on = String((button.dataset.view === "pano") === Sky.state.pano);
+    if (button.getAttribute("aria-pressed") !== on) button.setAttribute("aria-pressed", on);
+  }
+}
+
+const sheets = { menu: $("menu"), effects: $("effects"), export: $("export"), detail: $("detail") };
+const closeSheets = (except) => { for (const [name, node] of Object.entries(sheets)) if (name !== except && node.open) node.close(); };
 function toggleSheet(name) {
   const sheet = sheets[name];
-  for (const [other, node] of Object.entries(sheets)) if (other !== name && node.open) node.close();
+  closeSheets(name);
   if (sheet.open) sheet.close(); else sheet.showModal();
 }
-$("open-effects").addEventListener("click", () => toggleSheet("effects"));
-$("open-export").addEventListener("click", () => toggleSheet("export"));
-$("open-detail").addEventListener("click", () => toggleSheet("detail"));
+
+document.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const view = target?.closest("[data-view]");
+  if (view) { setView(view.dataset.view === "pano"); return; }
+  const sheet = target?.closest("[data-sheet]");
+  if (sheet) toggleSheet(sheet.dataset.sheet);
+});
+
+// one build select, moved between the bar and the menu as the page narrows, so there is never a second to keep in step
+const narrow = window.matchMedia("(max-width: 960px)");
+const placeBuild = () => (narrow.matches ? $("menu-build") : $("bar-build")).append($("build"));
+narrow.addEventListener("change", placeBuild);
+placeBuild();
 
 document.addEventListener("keydown", (event) => {
   const typing = event.target instanceof Element && event.target.matches("input, select, textarea");
   if (event.key === "/" && !typing) { event.preventDefault(); openFind(); return; }
-  if (typing || event.metaKey || event.ctrlKey) return;
+  if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
   const step = event.shiftKey ? 120 : 20;
   switch (event.key) {
     case " ": event.preventDefault(); setPlaying(!Sky.state.playing); break;
     case "ArrowLeft": Sky.state.time = (Sky.state.time - step + DAY) % DAY; break;
     case "ArrowRight": Sky.state.time = (Sky.state.time + step) % DAY; break;
-    case "p": toggleView(); break;
+    case "p": setView(!Sky.state.pano); break;
     case "r": Sky.LOOK.yaw = 0; Sky.LOOK.pitch = 0.15; Sky.setFov(73.74); writeHash(); break;
-    case "s": toggleSheet("effects"); break;
+    case "s": if (!Sky.state.pano) toggleSheet("effects"); break;
     case "e": toggleSheet("export"); break;
     case "d": toggleSheet("detail"); break;
     default: break;
@@ -591,11 +618,45 @@ document.addEventListener("keydown", (event) => {
 
 function writeHash() {
   const parts = [`b=${Sky.state.build}`, `p=${Sky.state.paramId}`, `t=${Math.round(Sky.state.time)}`];
-  if (Sky.state.screen) parts.push(`se=${Sky.state.screen.id}`);
-  if (Sky.state.pano) parts.push(`yaw=${Math.round((Sky.LOOK.yaw * 180) / Math.PI)}`);
-  else parts.push("view=look");
+  // the direction is kept in both views; the tilt, the zoom and an effect only mean something in perspective
+  parts.push(`yaw=${Math.round((Sky.LOOK.yaw * 180) / Math.PI)}`);
+  if (!Sky.state.pano) {
+    parts.push("view=look", `pitch=${Math.round((Sky.LOOK.pitch * 180) / Math.PI)}`, `fov=${Math.round(Sky.fov())}`);
+    if (Sky.state.screen) parts.push(`se=${Sky.state.screen.id}`);
+  }
   history.replaceState(null, "", `#${parts.join("&")}`);
 }
+
+// ---------------------------------------------------------------- how much of the page the sky takes
+
+const TURN = Sky.PANO_ASPECT;
+const PLATE_ROOM = 150; // what the name and caption under a panorama need
+const WHOLE_TURN_SHARE = 0.45; // under this share of the room, the whole turn is a sliver and a window of it is shown
+const NARROWEST_WINDOW = 0.2; // of the turn: narrower, and dragging through it stops reading as a panorama
+
+/**
+ * The sky's height. A perspective view takes all the room above the console. A panorama is the whole turn when
+ * that is a real plate on this page, and on a narrow or tall one it is a window of the turn instead, as tall as the
+ * caption leaves room for; the engine shows as much of the turn as keeps the map conformal at that shape.
+ */
+function fitSky() {
+  const root = document.documentElement;
+  const consoleHeight = $("console").offsetHeight;
+  const room = window.innerHeight - consoleHeight;
+  const width = window.innerWidth;
+  let height = room;
+  if (Sky.state.pano) {
+    const whole = width / TURN;
+    height = whole >= room * WHOLE_TURN_SHARE
+      ? Math.min(room, whole)
+      : Math.max(whole, Math.min(room - PLATE_ROOM, width / (NARROWEST_WINDOW * TURN)));
+  }
+  const skyPx = `${Math.round(height)}px`, consolePx = `${consoleHeight}px`;
+  if (root.style.getPropertyValue("--sky") !== skyPx) root.style.setProperty("--sky", skyPx);
+  if (root.style.getPropertyValue("--console") !== consolePx) root.style.setProperty("--console", consolePx);
+  document.body.classList.toggle("panorama", Sky.state.pano);
+}
+window.addEventListener("resize", () => { fitSky(); bandImage = null; });
 
 // ---------------------------------------------------------------- boot
 
@@ -606,36 +667,28 @@ Sky.on("build", () => {
   build.value = Sky.state.build;
   const bodies = Sky.state.light.celestialBodies ?? [];
   $("body").replaceChildren(
-    Object.assign(document.createElement("option"), { value: "auto", textContent: "auto, the red star unless hidden" }),
-    Object.assign(document.createElement("option"), { value: "none", textContent: "none" }),
-    ...bodies.map((b) => Object.assign(document.createElement("option"), { value: String(b.id), textContent: `row ${b.id}${b.id === 9 ? ", Argus" : b.id === 20 ? ", the red star" : ""}` })),
+    Object.assign(document.createElement("option"), { value: "auto", textContent: "Auto, the red star unless hidden" }),
+    Object.assign(document.createElement("option"), { value: "none", textContent: "None" }),
+    ...bodies.map((b) => Object.assign(document.createElement("option"), { value: String(b.id), textContent: `Row ${b.id}${b.id === 9 ? ", Argus" : b.id === 20 ? ", the red star" : ""}` })),
   );
   $("body").value = Sky.state.body;
   renderEffects("");
   noteEffect();
 });
 Sky.on("preset", () => paintPlate());
-/** The sky's own height: a panorama is as tall as its aspect makes it, a perspective view takes what is left. */
-function fitSky() {
-  const room = window.innerHeight - parseInt(getComputedStyle(document.documentElement).getPropertyValue("--console"), 10);
-  const height = Sky.state.pano ? Math.min(room, window.innerWidth / 4.0914) : room;
-  document.documentElement.style.setProperty("--sky", `${Math.round(height)}px`);
-  document.body.classList.toggle("panorama", Sky.state.pano);
-}
-window.addEventListener("resize", () => { fitSky(); bandImage = null; });
 
 /** The waiting line and the trouble line, from any frame, drawn or not. */
 function paintStatus(loading, error) {
   $("waiting").hidden = !loading;
-  if (loading) $("waiting-what").textContent = loading;
+  if (loading) $("waiting-what").textContent = `${loading[0].toUpperCase()}${loading.slice(1)}`;
   $("sky-trouble").hidden = !error;
-  if (error) $("sky-trouble").textContent = error;
+  if (error) $("sky-trouble").textContent = `${error[0].toUpperCase()}${error.slice(1)}`;
 }
-Sky.on("waiting", ({ loading, error }) => paintStatus(loading, error));
+Sky.on("waiting", ({ loading, error }) => { fitSky(); paintStatus(loading, error); });
 
 Sky.on("frame", ({ time, loading, error, light, sun }) => {
   $("clock").textContent = hhmm(time);
-  viewButton.setAttribute("aria-pressed", String(!Sky.state.pano));
+  paintView();
   fitSky();
   lastLight = light;
   applyAccent(light, (Math.asin(clamp(sun.z, -1, 1)) * 180) / Math.PI);
@@ -649,11 +702,14 @@ $("build").addEventListener("change", (event) => {
   Sky.loadBuild(event.target.value, Sky.state.paramId).catch(() => { event.target.value = Sky.state.build; });
 });
 
+listenForCommands();
 const hash = Object.fromEntries(location.hash.slice(1).split("&").filter(Boolean).map((kv) => kv.split("=")));
 setPlaying(false);
 $("speed-read").value = speedLabel(Sky.state.speed);
 $("speed").value = String(Math.log10(Sky.state.speed));
 for (const box of document.querySelectorAll("#layers [data-layer]")) box.checked = Sky.state.layers[box.dataset.layer];
+if (hash.pitch) Sky.LOOK.pitch = clamp((Number(hash.pitch) * Math.PI) / 180, -1.5, 1.5);
+if (hash.fov) Sky.setFov(Number(hash.fov));
 await Sky.boot({
   build: hash.b,
   param: hash.p ? Number(hash.p) : undefined,
