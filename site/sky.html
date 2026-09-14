@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skylook</title>
+<meta name="description" content="A World of Warcraft sky drawn in the browser through its whole day, with the Epsilon commands that put it in the game.">
+<meta name="theme-color" content="#07080c">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Skylook">
+<meta property="og:title" content="Skylook">
+<meta property="og:description" content="A World of Warcraft sky drawn in the browser through its whole day, with the Epsilon commands that put it in the game.">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://wago.tools" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="./app.css">
+</head>
+<body>
+<canvas id="gl" aria-label="the sky, drawn"></canvas>
+
+<header class="topbar">
+  <a class="brand" href="./index.html">Skylook <span>all skies</span></a>
+  <button type="button" class="finder" id="open-find"><span class="key">/</span> find a sky</button>
+  <select id="build" class="build" aria-label="game build"></select>
+  <div class="spacer"></div>
+  <button type="button" class="rail" id="toggle-view" aria-pressed="false" title="the perspective view instead of the panorama (p)">perspective</button>
+  <button type="button" class="rail" id="open-effects" title="screen effect (s)">effect</button>
+  <button type="button" class="rail" id="open-export" title="export a picture or a loop (e)">export</button>
+  <button type="button" class="rail" id="open-detail" title="everything this preset declares (d)">detail</button>
+</header>
+
+<div class="plate">
+  <h1 id="sky-name">Skylook</h1>
+  <p class="caption" id="sky-caption"></p>
+  <p class="trouble" id="sky-trouble" role="alert" hidden></p>
+</div>
+
+<div class="waiting" id="waiting" role="status"><span class="spin"></span><span id="waiting-what">loading</span></div>
+
+<section class="console" aria-label="the day and what to do with it">
+  <div class="day">
+    <button type="button" id="play" class="play" aria-label="play the day"><span class="glyph">▶</span></button>
+    <time id="clock">12:00</time>
+    <canvas id="band" class="band" aria-label="the sky through the day; drag to set the time"></canvas>
+    <div class="speed">
+      <label for="speed">speed</label>
+      <input type="range" id="speed" min="-1" max="3" step="0.02" value="1">
+      <output id="speed-read">10 min/s</output>
+    </div>
+  </div>
+
+  <div class="strips">
+    <div class="world" id="world" aria-label="what this sky does to the world"></div>
+    <div class="take" id="take"></div>
+  </div>
+</section>
+
+<dialog class="find" id="find" closedby="any" aria-label="find a sky">
+  <input type="search" id="find-input" placeholder="a zone, a sky, a spell id, a preset id" autocomplete="off" aria-label="find a sky">
+  <ul class="results" id="find-results"></ul>
+  <p class="hint">Up and down to preview, enter to keep it, escape to go back</p>
+</dialog>
+
+<dialog class="sheet" id="effects" closedby="any" aria-labelledby="effects-title">
+  <h2 id="effects-title">Screen effect</h2>
+  <input type="search" id="effect-input" placeholder="a name, a ScreenEffect id, a spell id" autocomplete="off" aria-label="find a screen effect">
+  <ul class="results" id="effect-results"></ul>
+  <div class="row"><button type="button" id="effect-clear">Draw none</button></div>
+  <p class="note" id="effect-note">None. An effect is drawn over the perspective view, so choosing one leaves the panorama.</p>
+</dialog>
+
+<dialog class="sheet" id="export" closedby="any" aria-labelledby="export-title">
+  <h2 id="export-title">Export</h2>
+  <div class="row">
+    <label>width <input type="number" id="export-width" value="1536" min="64" max="4096" step="64"></label>
+    <button type="button" id="save-png">Save picture</button>
+    <button type="button" id="copy-png">Copy picture</button>
+  </div>
+  <h3>A seamless loop</h3>
+  <div class="row">
+    <label>seconds <input type="number" id="loop-seconds" value="8" min="1" step="0.5"></label>
+    <label>fps <input type="number" id="loop-fps" value="20" min="1" max="50"></label>
+    <label>quality <input type="number" id="loop-quality" value="80" min="1" max="100"></label>
+    <label>format
+      <select id="loop-format"><option value="gif">gif</option><option value="mp4">mp4</option><option value="webm">webm</option></select>
+    </label>
+  </div>
+  <div class="row">
+    <label>day
+      <select id="loop-day"><option value="hold">held still</option><option value="cycle">one whole day</option></select>
+    </label>
+    <label>seam
+      <select id="loop-seam"><option value="auto">auto</option><option value="snap">snap the clocks</option><option value="fade">cross-fade</option></select>
+    </label>
+    <button type="button" id="save-loop">Save loop</button>
+  </div>
+  <p class="note" id="export-note" role="status">A loop drives every animation from its frame, so its last frame runs into its first. It is drawn and encoded in this tab.</p>
+</dialog>
+
+<dialog class="sheet detail" id="detail" closedby="any" aria-labelledby="detail-title">
+  <h2 id="detail-title">What this preset declares</h2>
+  <pre id="detail-text"></pre>
+  <h3>Layers</h3>
+  <div class="layers" id="layers">
+    <label><input type="checkbox" data-layer="cone" checked> sky cone</label>
+    <label><input type="checkbox" data-layer="clouds" checked> clouds</label>
+    <label><input type="checkbox" data-layer="model" checked> skybox model</label>
+    <label><input type="checkbox" data-layer="celestialModel" checked> celestial model</label>
+    <label><input type="checkbox" data-layer="fogcone" checked> fog blend</label>
+    <label><input type="checkbox" data-layer="lut" checked> colour grading</label>
+    <label><input type="checkbox" data-layer="celestials"> sun and moon</label>
+    <label><input type="checkbox" data-layer="ground" checked> ground</label>
+    <label><input type="checkbox" data-layer="neutral"> black backdrop</label>
+  </div>
+  <div class="row"><label>celestial body <select id="body"></select></label></div>
+  <p class="credit">
+    Every model and texture is the game's own file, fetched from <a href="https://wago.tools">wago.tools</a> when a
+    sky is opened. World of Warcraft is a trademark of Blizzard Entertainment, and Skylook is a fan project not
+    affiliated with it. <a href="https://github.com/Natans8/skylook">Source</a>
+  </p>
+</dialog>
+
+<footer class="keys">
+  <span><b>/</b> find</span><span><b>space</b> play</span><span><b>arrows</b> scrub</span><span><b>p</b> panorama</span><span><b>r</b> recentre</span><span><b>s</b> effect</span><span><b>e</b> export</span><span><b>d</b> detail</span>
+</footer>
+
+<script type="module">
+  // the engine needs WebGL 2; without it the import fails, and the page says so rather than waiting forever
+  import("./app.js").catch((error) => {
+    console.error(error);
+    document.getElementById("waiting").hidden = true;
+    document.getElementById("sky-name").textContent = "The sky could not be drawn";
+    const trouble = document.getElementById("sky-trouble");
+    trouble.textContent = `This browser could not start the viewer: ${error.message}`;
+    trouble.hidden = false;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+[
+ {
+  "build": "1.15.9.69109",
+  "label": "Classic Era 1.15.9",
+  "exported": true
+ },
+ {
+  "build": "2.5.6.69110",
+  "label": "TBC Classic 2.5.6",
+  "exported": true
+ },
+ {
+  "build": "3.4.3.58936",
+  "label": "WotLK Classic 3.4.3",
+  "exported": true
+ },
+ {
+  "build": "4.4.2.60895",
+  "label": "Cata Classic 4.4.2",
+  "exported": true
+ },
+ {
+  "build": "5.5.4.69155",
+  "label": "MoP Classic 5.5.4",
+  "exported": true
+ },
+ {
+  "build": "7.3.5.26972",
+  "label": "Legion 7.3.5",
+  "exported": true
+ },
+ {
+  "build": "8.3.7.35662",
+  "label": "BfA 8.3.7",
+  "exported": true
+ },
+ {
+  "build": "9.2.7.45745",
+  "label": "Shadowlands 9.2.7 (Epsilon)",
+  "exported": true
+ },
+ {
+  "build": "10.2.7.55664",
+  "label": "Dragonflight 10.2.7",
+  "exported": true
+ },
+ {
+  "build": "11.2.7.65299",
+  "label": "The War Within 11.2.7",
+  "exported": true
+ },
+ {
+  "build": "12.1.0.69273",
+  "label": "Midnight 12.1.0",
+  "exported": true
+ },
+ {
+  "build": "12.1.5.69594",
+  "label": "Midnight PTR 12.1.5",
+  "exported": true
+ }
+]

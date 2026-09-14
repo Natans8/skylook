@@ -1,0 +1,16 @@
+# The light tables and the gallery pictures live in Git LFS, and the site is deployed by GitHub Actions.
+#
+# The two are coupled. Pages does not resolve LFS pointers, so serving site/ straight off a branch would hand the
+# page about 130 bytes of pointer text where it expects a table or a picture. .github/workflows/pages.yml checks
+# out with the LFS objects pulled and uploads real files, so Pages never reads the repository itself. If the deploy
+# ever moves back to a branch, these files come out of LFS in the same change.
+#
+# The tables are stored gzipped, which is a twelfth of their size, and unpacked by the page as they arrive.
+#
+# The LFS lines come last, so their -text wins over anything above them.
+* text=auto eol=lf
+*.wasm binary
+*.gz binary
+*.webp binary
+site/data/versions/*/light.json.gz filter=lfs diff=lfs merge=lfs -text
+site/data/gallery/**/*.webp filter=lfs diff=lfs merge=lfs -text

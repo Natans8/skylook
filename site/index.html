@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skylook</title>
+<meta name="description" content="Every World of Warcraft skybox and screen effect, pictured through the day, with the Epsilon commands that put each one in the game.">
+<meta name="theme-color" content="#07080c">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Skylook">
+<meta property="og:title" content="Skylook">
+<meta property="og:description" content="Every World of Warcraft skybox and screen effect, pictured through the day, with the Epsilon commands that put each one in the game.">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /*
+   * The index of the atlas, and it wears the viewer's own type so the two pages are one thing: a serif for the
+   * place, a grotesque for the interface, a mono for everything the game calls by a number.
+   *
+   * A card leads with the sky's own name; where it is seen is the line under it, and the file is the caption.
+   */
+  :root {
+    color-scheme: dark;
+    --void: #07080c;
+    --plate: #0d0f16;
+    --rule: #1e2230;
+    --ink: #e8eaf0;
+    --ink-dim: #98a1b4;
+    --lit: #ffcf5c;
+    --lit-ink: #14100a;
+    --serif: "Instrument Serif", Georgia, serif;
+    --sans: "Archivo", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --strip: 4.0914; /* the Mercator strip's own aspect, -4 to 64 degrees of elevation */
+    --thumb: 13px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--void); color: var(--ink); font: 14px/1.5 var(--sans); }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  a { color: var(--lit); }
+  :focus-visible { outline: 2px solid var(--lit); outline-offset: 2px; }
+
+  header {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; gap: 8px 16px; align-items: baseline; flex-wrap: wrap;
+    padding: 14px 20px 12px;
+    background: var(--void);
+    border-bottom: 1px solid var(--rule);
+  }
+  h1 { font: 400 26px/1 var(--serif); letter-spacing: 0.01em; margin: 0; }
+  header nav a { font: 500 11px/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); text-decoration: none; }
+  header nav a:hover { color: var(--lit); }
+  #build { font: 400 12px var(--mono); color: var(--ink-dim); white-space: pre; }
+  h2 { font: 500 11px/1 var(--sans); text-transform: uppercase; letter-spacing: 0.16em; color: var(--ink-dim); margin: 30px 0 12px; }
+  input[type=search] {
+    flex: 1; min-width: min(260px, 100%); max-width: 460px;
+    background: var(--plate); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 6px 10px; font: 13px var(--mono);
+  }
+  .count { font: 12px var(--mono); color: var(--ink-dim); margin-left: auto; }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 20px 40px; }
+  .lede { font: 400 19px/1.45 var(--serif); color: var(--ink); max-width: 62ch; margin: 26px 0 0; }
+  .lede span { color: var(--ink-dim); }
+
+  /* a sky is one wide strip per row: the panorama is the preview, so nothing competes with it for width */
+  .column { display: flex; flex-direction: column; gap: 14px; }
+  .card { background: var(--plate); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  .card[hidden] { display: none; }
+  .strip { position: relative; background: #000; }
+  .strip img { width: 100%; height: auto; aspect-ratio: var(--strip); display: block; object-fit: cover; }
+  .strip .clock { position: absolute; left: 11px; top: 8px; font: 500 13px var(--mono); color: #fff; text-shadow: 0 1px 3px #000, 0 0 8px #0009; }
+  .strip .note { position: absolute; right: 11px; top: 9px; font: 11px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: #dfe3ea; text-shadow: 0 1px 3px #000, 0 0 8px #0009; }
+
+  .bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 18px; align-items: center; padding: 10px 14px 12px; }
+  .where { font: 400 21px/1.25 var(--serif); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .where .more { font: 400 12px var(--sans); color: var(--ink-dim); letter-spacing: 0.02em; }
+  /* where and when the sky is drawn, which is prose rather than a row of numbers */
+  .place { grid-column: 1 / -1; font: 13px/1.4 var(--sans); color: var(--ink); }
+  .place .when { color: var(--ink-dim); }
+  /* the caption's fields are separated by wide gaps rather than a glyph, so the spaces have to survive */
+  .meta { grid-column: 1 / -1; font: 11px/1.5 var(--mono); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+
+  /* the day is a notched rail: six stops, and the strip's clock is its readout */
+  .scrub { grid-column: 2; grid-row: 1; justify-self: end; position: relative; width: 190px; height: var(--thumb); }
+  .scrub input { -webkit-appearance: none; appearance: none; width: 100%; height: var(--thumb); background: transparent; margin: 0; display: block; position: relative; }
+  .scrub input::-webkit-slider-runnable-track { height: 2px; background: var(--rule); margin-top: calc((var(--thumb) - 2px) / 2); }
+  .scrub input::-moz-range-track { height: 2px; background: var(--rule); }
+  .scrub input::-webkit-slider-thumb { -webkit-appearance: none; width: var(--thumb); height: var(--thumb); border-radius: 50%; background: var(--lit); border: none; margin-top: calc((2px - var(--thumb)) / 2); }
+  .scrub input::-moz-range-thumb { width: var(--thumb); height: var(--thumb); border-radius: 50%; background: var(--lit); border: none; }
+  .notches { position: absolute; inset: 0 calc(var(--thumb) / 2); display: flex; align-items: center; justify-content: space-between; pointer-events: none; }
+  .notches i { width: 1px; height: 9px; background: #4a5268; }
+  .notches i.on { background: var(--lit); }
+
+  .cmds { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+  .cmds button, .cmds a {
+    background: transparent; color: var(--ink); border: 1px solid var(--rule); border-radius: 3px;
+    padding: 2px 8px; font: 11px var(--mono); text-decoration: none; white-space: nowrap;
+  }
+  .cmds button:hover, .cmds a:hover { border-color: var(--ink-dim); }
+  .cmds button.done { background: var(--lit); border-color: var(--lit); color: var(--lit-ink); }
+  .cmds a { color: var(--lit); }
+  .missing { padding: 12px 14px; font: 11px var(--mono); color: var(--ink-dim); }
+
+  /* an effect is drawn over the look view, so its card keeps that view's shape and they sit in a grid */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px; }
+  .grid .strip img { aspect-ratio: 16 / 9; }
+  .grid .bar { grid-template-columns: minmax(0, 1fr); }
+  .grid .meta { white-space: pre-wrap; }  /* a narrow column has to wrap the caption rather than clip it */
+  .grid .cmds { justify-content: flex-start; }
+  .empty { padding: 40px 0; color: var(--ink-dim); }
+
+  footer { max-width: 1080px; margin: 0 auto; padding: 18px 20px 36px; border-top: 1px solid var(--rule); font: 12px/1.6 var(--sans); color: var(--ink-dim); }
+  footer a { color: var(--ink); }
+
+  @media (max-width: 640px) {
+    .bar { grid-template-columns: minmax(0, 1fr); }
+    .scrub { grid-column: 1; grid-row: auto; justify-self: start; width: 100%; }
+    .cmds { justify-content: flex-start; }
+    .meta { white-space: pre-wrap; }
+    .count { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Skylook</h1>
+  <nav><a href="./sky.html">viewer</a></nav>
+  <span id="build"></span>
+  <input type="search" id="q" placeholder="a zone, a map, a file, a spell id, an effect name" aria-label="find a sky or an effect">
+  <span class="count" id="count"></span>
+</header>
+<main>
+  <p class="lede">Every skybox of World of Warcraft 9.2.7, the client Epsilon runs, pictured through the day. <span>Copy a command to put a sky in the game, or open one to watch its whole day turn.</span></p>
+  <h2>Skyboxes</h2>
+  <div class="column" id="skies"></div>
+  <h2>Screen effects</h2>
+  <div class="grid" id="effects"></div>
+  <div class="empty" id="empty" hidden>Nothing matches.</div>
+</main>
+<footer>
+  The pictures are drawn from the game's own files, and the viewer fetches them from <a href="https://wago.tools">wago.tools</a>
+  when a sky is opened. World of Warcraft is a trademark of Blizzard Entertainment, and Skylook is a fan project not
+  affiliated with it. <a href="https://github.com/Natans8/skylook">Source</a>
+</footer>
+<script type="module" src="./gallery.js"></script>
+</body>
+</html>

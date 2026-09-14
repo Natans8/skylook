@@ -1,0 +1,57 @@
+Skylook — licensing notice
+Copyright (C) 2026 Nataari <https://github.com/Natans8>
+
+This distribution contains material under several licences, from several owners. A single licence over the
+whole tree would over-claim: part of what Skylook ships is redistributed under someone else's terms, and part of
+it is not ours to license at all.
+
+
+1. COVERED BY THE AGPL — the work Skylook's author wrote
+
+       site/*.html     site/*.js       site/*.css      site/favicon.svg
+       README.md       and the repository's configuration files
+
+   Licensed under the GNU Affero General Public License, version 3 or (at your option) any later version.
+   Full text in LICENSE.
+
+   site/ts.*.js are compiled from the author's TypeScript by esbuild, unminified, and carry the same terms.
+
+
+2. THIRD-PARTY CODE — redistributed under its own licence, not ours to relicense
+
+       site/lib/three.module.js       three.js           — three.js authors — MIT
+       site/lib/wowser-format.js      @wowserhq/format   — Wowser contributors — MIT
+       site/lib/mediabunny.min.js     mediabunny         — Vanilagy and contributors — MPL-2.0
+       site/lib/gifski/**             gifski-wasm        — Jamie Sinclair, and gifski by Kornel Lesiński
+                                                           — AGPL-3.0-or-later
+
+   Each is the published package's own file, unmodified; mediabunny's bundle is renamed from .mjs to .js so that
+   every static host serves it as JavaScript. three.js carries its notice in its header; the other three carry
+   theirs in the licence file beside them.
+
+
+3. NOT LICENSED BY US — redistributed, not owned
+
+   site/data/**
+       Light tables exported from World of Warcraft client tables (via wago.tools), the gallery pictures rendered
+       from the client's own skybox models and textures, and the Epsilon map built from the same tables. World of
+       Warcraft and its data are the property of Blizzard Entertainment. No copyright is claimed over this
+       material and none is granted by the AGPL above; it is redistributed here for non-commercial fan use only.
+
+   The models and textures the viewer draws are not in this repository. The page fetches them from wago.tools when
+   a sky is opened, and they remain the property of Blizzard Entertainment.
+
+   Distributing these alongside the AGPL-licensed work does not place them under the AGPL, and does not place the
+   AGPL work under their terms.
+
+
+4. AUTHORSHIP
+
+   Skylook is written by a software engineer working with AI assistance: its author designs the system, directs
+   and reviews the work, revises what comes back, and writes parts of it directly.
+
+   Copyright protects works of human authorship, and material produced without human creative control may not be
+   protectable in every country this is distributed in. What is claimed here is the human contribution — the code
+   its author wrote, the revision of what they did not, and the selection, arrangement and design of the work as a
+   whole. Where some portion turns out not to be protectable, the licence simply has nothing to bite on for that
+   portion, and the terms above stand for everything else.

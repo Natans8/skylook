@@ -1,0 +1,62 @@
+# Skylook deploy: publishes site/ to GitHub Pages.
+#
+# The light tables and the gallery pictures are in Git LFS, and Pages does not resolve LFS pointers, so the site is
+# uploaded from a checkout whose LFS objects have been pulled rather than served off a branch. This file and
+# .gitattributes change together. The repository's Pages source has to be "GitHub Actions"; nothing here sets it.
+
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# one deploy at a time, and never a cancelled one, which can leave the site serving a partial upload
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # LFS downloads count against the account's monthly bandwidth, so the objects are cached between deploys and
+      # only a file that changed is fetched again
+      - name: List the LFS objects
+        run: git lfs ls-files --long | cut -d ' ' -f1 | sort > .lfs-objects
+
+      - uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-objects') }}
+          restore-keys: lfs-
+
+      - name: Pull the LFS objects
+        run: git lfs pull
+
+      # a pointer that never resolved deploys green and serves text where the page expects data, so it fails here
+      - name: Prove no LFS pointer is left in site/
+        run: |
+          if grep -rlI '^version https://git-lfs' site; then
+            echo "the files above are still LFS pointers" >&2
+            exit 1
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
