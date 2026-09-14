@@ -6,9 +6,10 @@
  * does to the world, what to copy), and the sheets that are summoned and dismissed. The browsing of every sky
  * lives in `index.html`, so this page is for looking at one closely.
  */
-import { Sky } from "./sky.js?v=9301d1afee";
-import { commandButtons, effectCommands, listenForCommands, skyCommands } from "./commands.js?v=9301d1afee";
-import { readable } from "./lit.js?v=9301d1afee";
+import { Sky } from "./sky.js?v=a2c139cf7d";
+import { commandButtons, effectCommands, listenForCommands, skyCommands } from "./commands.js?v=a2c139cf7d";
+import { readable } from "./lit.js?v=a2c139cf7d";
+import { EXTREME_MOTION, measureMotion, motionWarning } from "./motion.js?v=a2c139cf7d";
 
 const $ = (id) => document.getElementById(id);
 const DAY = Sky.DAY;
@@ -81,6 +82,7 @@ function describe(id) {
   const luts = new Set(param.ramp.map((s) => s.ColorGradingFileDataID).filter(Boolean));
   const map = epsilonMap()?.bySkybox.get(param.skybox);
   const below = belowOf.get(`${Sky.state.build}:${id}`);
+  const motion = motionOf.get(`${Sky.state.build}:${id}`);
   const lines = [
     `LightParams ${id} on ${Sky.state.build}`,
     `  ${param.ramp.length} stops, glow ${param.glow}, highlight sky ${param.highlightSky}`,
@@ -94,6 +96,7 @@ function describe(id) {
     preset?.spells.length ? `skybox spells: ${preset.spells.join(", ")}` : "no skybox spell reaches it",
     map?.displays.length ? `as a gob: ${map.spawn.join(" / ")}` : "",
     below ? `below the horizon: ${{ none: "fog of one colour", some: "sky worth a look", mostly: "most of the sky" }[below]}` : "",
+    motion !== undefined ? `motion: ${Math.round(motion * 100)}% of the turn moves by itself` : "",
   ];
   return lines.filter(Boolean).join("\n");
 }
@@ -139,10 +142,18 @@ function paintCaption() {
     below === "mostly" ? "most of it below the horizon" : below === "some" ? "sky below the horizon" : "",
   ].filter(Boolean);
   // the fields are cells divided by drawn rules, and each is set as text, so a name from the tables never becomes markup
-  $("sky-caption").replaceChildren(
+  const cells = [
     Object.assign(document.createElement("b"), { textContent: String(id) }),
     ...bits.map((bit) => Object.assign(document.createElement("span"), { textContent: bit })),
-  );
+  ];
+  const extreme = (motionOf.get(presetKey()) ?? 0) >= EXTREME_MOTION;
+  if (extreme) {
+    const cell = Object.assign(document.createElement("span"), { className: "motion-cell" });
+    cell.append(motionWarning(), "a lot of motion");
+    cells.push(cell);
+  }
+  $("sky-caption").replaceChildren(...cells);
+  motionButton.classList.toggle("extreme", extreme);
 }
 
 /** The commands that put this sky, or the screen effect over it, into the game. */
@@ -414,6 +425,7 @@ function surveyWhenSettled() {
   if (pending.texPending || pending.loading) return;
   const below = surveyBelow();
   belowOf.set(presetKey(), below);
+  motionOf.set(presetKey(), measureMotion(Sky, DAY / 2));
   // a sky model knows nothing of terrain, so any sky with something below the horizon is shown with it: a floating
   // zone and a ground zone measure alike, and only a lower half of flat fog keeps the ground
   if (!groundChosen) Sky.state.layers.ground = below === "none";
@@ -448,6 +460,33 @@ lookBelow.addEventListener("click", () => {
   Sky.state.layers.ground = false;
   writeHash();
 });
+
+// ---------------------------------------------------------------- motion, and holding the sky still
+
+/** How much of each measured preset moves by itself, from 0 to 1, keyed by build and preset. */
+const motionOf = new Map();
+const motionButton = $("motion");
+
+/** Hold every animation still or let the sky move, and remember the choice for the next visit. */
+function setStill(still, remember = true) {
+  Sky.state.still = still;
+  motionButton.setAttribute("aria-pressed", String(still));
+  if (!remember) return;
+  try {
+    localStorage.setItem("skylook.still", still ? "1" : "0");
+  } catch {
+    // storage refused: the choice lasts this visit
+  }
+}
+let rememberedStill = null;
+try {
+  rememberedStill = localStorage.getItem("skylook.still");
+} catch {
+  // storage refused: nothing was remembered
+}
+// without a choice of its own, a page shown to a system that asks for reduced motion starts still
+setStill(rememberedStill === null ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : rememberedStill === "1", false);
+motionButton.addEventListener("click", () => setStill(!Sky.state.still));
 
 // ---------------------------------------------------------------- the interface is lit by the sky it shows
 
@@ -784,6 +823,7 @@ document.addEventListener("keydown", (event) => {
     case "ArrowRight": Sky.state.time = (Sky.state.time + step) % DAY; break;
     case "p": setView(!Sky.state.pano); break;
     case "g": if (!Sky.state.pano) setGround(!Sky.state.layers.ground); break;
+    case "m": setStill(!Sky.state.still); break;
     case "r": Sky.LOOK.yaw = 0; Sky.LOOK.pitch = BAND_PITCH; Sky.setFov(Sky.DEFAULT_FOV); writeHash(); break;
     case "s": if (!Sky.state.pano) toggleSheet("effects"); break;
     case "e": toggleSheet("export"); break;

@@ -91,6 +91,10 @@ button { cursor: pointer; }
 .segmented button:hover { color: var(--ink); }
 .segmented button[aria-pressed="true"] { background: var(--lit); color: var(--lit-ink); }
 
+/* a sky measured to move a lot: amber, because it warns, and never the sky's own accent */
+.motion-warning { display: inline-flex; flex: none; width: 0.95em; height: 0.95em; color: #ffb547; vertical-align: -0.1em; }
+.motion-warning svg { display: block; width: 100%; height: 100%; }
+
 .toast {
   position: fixed;
   left: 50%;

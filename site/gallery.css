@@ -151,6 +151,7 @@ main { max-width: var(--page); margin: 0 auto; padding: 0 20px 56px; }
 .name { grid-column: 1; margin: 0; font: 400 27px/1.1 var(--serif); letter-spacing: 0.005em; overflow-wrap: anywhere; }
 .grid .name { font-size: 22px; }
 .name .more { font: 400 12px/1 var(--sans); letter-spacing: 0.02em; color: var(--ink-dim); }
+.name .motion-warning { width: 15px; height: 15px; margin-left: 9px; vertical-align: 0.12em; }
 .place { grid-column: 1 / -1; margin: 2px 0 0; font: 14px/1.45 var(--sans); }
 .place .when { color: var(--ink-dim); }
 /* the viewer caption's wrapping row of cells, its rules clipped wherever a cell starts a line */

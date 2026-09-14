@@ -90,16 +90,20 @@ body.panorama [data-for="look"], body:not(.panorama) [data-for="pano"] { display
 
 /* the view and the ground are always on screen: in the bar where it has room, and as a second row of it where not */
 .view-controls { display: flex; align-items: center; gap: 8px; }
-.ground { display: inline-flex; align-items: center; gap: 7px; }
-.ground[aria-pressed="true"] { border-color: #ffffff45; background: #ffffff1a; }
-.ground[aria-pressed="false"] { color: var(--ink-dim); }
+.ground, .motion { display: inline-flex; align-items: center; gap: 7px; }
+.ground[aria-pressed="true"], .motion[aria-pressed="true"] { border-color: #ffffff45; background: #ffffff1a; }
+.ground[aria-pressed="false"], .motion[aria-pressed="false"] { color: var(--ink-dim); }
+/* the Pause motion switch carries the warning mark on a sky measured to move a lot */
+.motion .motion-warning { display: none; }
+.motion.extreme .motion-warning { display: inline-flex; }
+.caption .motion-cell { display: inline-flex; align-items: center; gap: 0.45em; color: #ffcf8a; }
 /* the mark of a sky measured to hold something below the horizon */
 .below-mark { display: none; width: 7px; height: 7px; border-radius: 50%; background: var(--lit); box-shadow: 0 0 8px var(--lit); }
 .ground.notable .below-mark { display: inline-block; }
 
 @media (max-width: 960px) {
   .topbar { flex-wrap: wrap; }
-  .view-controls { order: 10; flex-basis: 100%; }
+  .view-controls { order: 10; flex-basis: 100%; flex-wrap: wrap; }
   body:not(.panorama) .drag-hint { top: 112px; }
 }
 

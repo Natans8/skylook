@@ -22,8 +22,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://wago.tools" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="./base.css?v=9301d1afee">
-<link rel="stylesheet" href="./app.css?v=9301d1afee">
+<link rel="stylesheet" href="./base.css?v=a2c139cf7d">
+<link rel="stylesheet" href="./app.css?v=a2c139cf7d">
 </head>
 <body class="panorama">
 <canvas id="gl" aria-label="The sky, drawn. Drag to look around."></canvas>
@@ -39,6 +39,7 @@
       <button type="button" data-view="look" aria-pressed="false">Perspective</button>
     </div>
     <button type="button" class="rail ground" id="ground" data-for="look" aria-pressed="true" title="The ground under the horizon (g)"><span class="below-mark" aria-hidden="true"></span>Ground</button>
+    <button type="button" class="rail motion" id="motion" aria-pressed="false" title="Hold every animation still (m)"><span class="motion-warning" aria-hidden="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6 15.2 14.4H.8z" fill="currentColor"/><path d="M8 6.2v3.8" stroke="#07080c" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="12.1" r="1" fill="#07080c"/></svg></span>Pause motion</button>
   </div>
   <button type="button" class="rail bar-only" data-sheet="effects" data-for="look" title="Screen effect (s)">Screen effect</button>
   <button type="button" class="rail bar-only" data-sheet="export" title="Export a picture or a loop (e)">Export</button>
@@ -159,14 +160,14 @@
 </dialog>
 
 <footer class="keys" aria-hidden="true">
-  <span><b>/</b> find</span><span><b>space</b> play</span><span><b>arrows</b> hour</span><span><b>p</b> view</span><span data-for="look"><b>g</b> ground</span><span><b>r</b> recentre</span><span data-for="look"><b>s</b> effect</span><span><b>e</b> export</span><span><b>d</b> details</span>
+  <span><b>/</b> find</span><span><b>space</b> play</span><span><b>arrows</b> hour</span><span><b>p</b> view</span><span data-for="look"><b>g</b> ground</span><span><b>m</b> motion</span><span><b>r</b> recentre</span><span data-for="look"><b>s</b> effect</span><span><b>e</b> export</span><span><b>d</b> details</span>
 </footer>
 
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
   // the engine needs WebGL 2; without it the import fails, and the page says so rather than waiting forever
-  import("./app.js?v=9301d1afee").catch((error) => {
+  import("./app.js?v=a2c139cf7d").catch((error) => {
     console.error(error);
     document.getElementById("waiting").hidden = true;
     document.getElementById("sky-name").textContent = "The sky could not be drawn";

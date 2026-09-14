@@ -2,12 +2,12 @@
 // approximate celestial layer, drawn the way the client layers them, for every roster build from Classic Era to
 // Midnight. It owns the canvas and nothing else on the page: `app.js` is the interface, and reaches everything
 // through the `Sky` export at the foot of this file.
-import * as THREE from "./lib/three.module.js?v=9301d1afee";
-import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=9301d1afee";
-import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=9301d1afee";
-import { cloudNoise } from "./ts.raster.js?v=9301d1afee";
-import { gifEncoder, videoEncoder } from "./encode.js?v=9301d1afee";
-import { TABLES_URL } from "./assets.js?v=9301d1afee";
+import * as THREE from "./lib/three.module.js?v=a2c139cf7d";
+import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=a2c139cf7d";
+import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=a2c139cf7d";
+import { cloudNoise } from "./ts.raster.js?v=a2c139cf7d";
+import { gifEncoder, videoEncoder } from "./encode.js?v=a2c139cf7d";
+import { TABLES_URL } from "./assets.js?v=a2c139cf7d";
 
 const DAY = 2880; // the client's day, in half-minutes
 const DEFAULT_BUILD = "9.2.7.45745";
@@ -23,6 +23,7 @@ const state = {
   layers: { cone: true, clouds: true, model: true, celestialModel: true, fogcone: true, celestials: false, lut: true, ground: true, neutral: false },
   body: "auto", // which CelestialBody row draws: auto, none, or a row id
   pano: true,
+  still: false, // every animation held where it is: a model's loops, the celestial body, an effect's scroll
   skybox: null,
   celestial: null,
   loading: "",
@@ -945,7 +946,7 @@ async function swapSkybox(sb) {
 async function applyScreen(id, spell) {
   const row = state.light.screenEffects?.[id];
   if (!row) return;
-  state.screen = { id, row, spell, since: performance.now() };
+  state.screen = { id, row, spell, since: motionMs };
   if (row.timeOfDay >= 0) state.time = row.timeOfDay * 2;
   // an effect is drawn over the look view and never over the strip, so asking for one turns the panorama off
   if (row.effect && state.pano) state.pano = false;
@@ -1070,7 +1071,7 @@ const stripHeight = (width) => Math.round(width / PANO_ASPECT);
 const lookHeight = (width) => Math.round((width * canvas.clientHeight) / canvas.clientWidth);
 const viewHeight = (width) => (state.pano ? stripHeight(width) : lookHeight(width));
 /** The strip at a width, at a day time and wall time. */
-function renderStrip(width, time, nowMs = performance.now()) {
+function renderStrip(width, time, nowMs = motionMs) {
   return renderToImage(width, stripHeight(width), time, nowMs, (target) => {
     panoQuad.material.uniforms.yaw0.value = LOOK.yaw;
     panoQuad.material.uniforms.span.value = 1; // a picture is always the whole turn, whatever the page shows
@@ -1087,7 +1088,7 @@ function aimCamera() {
   camera.lookAt(Math.cos(LOOK.pitch) * Math.cos(LOOK.yaw), Math.cos(LOOK.pitch) * Math.sin(LOOK.yaw), Math.sin(LOOK.pitch));
 }
 /** The look view at a width, graded and with the screen effect, in `height` or else the canvas's own aspect. */
-function renderLook(width, time, nowMs = performance.now(), height = lookHeight(width)) {
+function renderLook(width, time, nowMs = motionMs, height = lookHeight(width)) {
   const aspect = camera.aspect;
   try {
     return renderToImage(width, height, time, nowMs, (target) => {
@@ -1186,7 +1187,7 @@ async function renderLoop({ width, seconds, fps, day, seam }, { onStart, onFrame
   const fadeFrames = snap ? 0 : Math.min(count - 1, Math.max(2, Math.round(fps * 1.5)));
   const total = count + fadeFrames;
   const ffx = currentFfx();
-  const base = state.screen ? state.screen.since + (ffx?.f.EffectFadeInMs || 0) : performance.now(); // past the fade-in
+  const base = state.screen ? state.screen.since + (ffx?.f.EffectFadeInMs || 0) : motionMs; // past the fade-in
   const start = state.time; // the live clock may run on while the frames render
   await onStart?.({ count, width, height: viewHeight(width) });
   let drawn = 0;
@@ -1323,9 +1324,16 @@ function updateScene(nowMs, time = state.time) {
 
 let lastMs = performance.now();
 let paused = false; // a batch render holds the loop still while it draws its own frames
+/**
+ * The clock every animation reads: a model's sequences and loops, the celestial body's scroll and spin, a screen
+ * effect's scroll. It runs with the wall clock and stops where it is while the sky is held still, so pausing motion
+ * freezes the picture rather than resetting it.
+ */
+let motionMs = 0;
 function frame(nowMs) {
   const dt = Math.min(0.25, (nowMs - lastMs) / 1000); lastMs = nowMs;
   if (paused) { requestAnimationFrame(frame); return; }
+  if (!state.still) motionMs += dt * 1000;
   if (state.playing) state.time = (state.time + dt * state.speed * 2) % DAY;
   const param = state.light?.params[state.paramId];
   if (!param) {
@@ -1335,7 +1343,7 @@ function frame(nowMs) {
     return;
   }
   try {
-    updateScene(nowMs);
+    updateScene(motionMs);
   } catch (e) {
     // keep the loop alive: a preset or effect that fails to update must not freeze the clock for every later one
     state.error = `the scene could not be updated: ${e.message}`;
@@ -1359,7 +1367,7 @@ function frame(nowMs) {
   camera.aspect = w / h; camera.updateProjectionMatrix();
   renderer.setRenderTarget(null);
   renderer.clear();
-  updateScreenUniforms(nowMs, dw, dh);
+  updateScreenUniforms(motionMs, dw, dh);
   if (state.pano) {
     if (!LOOP) sizeCube(0); // back to the page's own cube once an export is done, and not between a loop's frames
     cubeCam.position.set(0, 0, 0);

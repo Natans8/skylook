@@ -4,9 +4,10 @@
  * `index.json` are written by `gallery_batch.js`.
  */
 
-import {CONDITIONS} from "./ts.gallerycards.js?v=9301d1afee";
-import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=9301d1afee";
-import {readable} from "./lit.js?v=9301d1afee";
+import {CONDITIONS} from "./ts.gallerycards.js?v=a2c139cf7d";
+import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=a2c139cf7d";
+import {readable} from "./lit.js?v=a2c139cf7d";
+import {EXTREME_MOTION, loadMotion, motionWarning} from "./motion.js?v=a2c139cf7d";
 
 const params = new URLSearchParams(location.search);
 const BUILD = params.get("build") || "9.2.7.45745";
@@ -38,6 +39,8 @@ try {
     throw new Error(`no gallery index for ${BUILD}`);
 }
 
+// how much each sky moves by itself, measured once for the whole gallery; a gallery without the record warns of nothing
+const motion = await loadMotion(BUILD);
 const picture = (kind, name) => `./data/gallery/${BUILD}/${kind}/${name}.${index.format || "png"}`;
 const inViewer = (hash) => `./sky.html#b=${index.build}&${hash}`;
 
@@ -212,6 +215,10 @@ function skyCard(s) {
     const info = element("div", "info");
     const name = element("h3", "name", stem);
     name.title = s.name;
+    if ((motion?.get(String(s.skybox)) ?? 0) >= EXTREME_MOTION) {
+        name.append(motionWarning());
+        card.dataset.text += " motion";
+    }
     info.append(name);
     if (s.hours.length > 1) {
         info.append(hourRail(s.hours, noon, (t) => {
