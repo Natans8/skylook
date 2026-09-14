@@ -4,9 +4,9 @@
  * `index.json` are written by `gallery_batch.js`.
  */
 
-import {CONDITIONS} from "./ts.gallerycards.js?v=d719e56a33";
-import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=d719e56a33";
-import {readable} from "./lit.js?v=d719e56a33";
+import {CONDITIONS} from "./ts.gallerycards.js?v=9301d1afee";
+import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=9301d1afee";
+import {readable} from "./lit.js?v=9301d1afee";
 
 const params = new URLSearchParams(location.search);
 const BUILD = params.get("build") || "9.2.7.45745";

@@ -88,6 +88,21 @@ body { height: 100dvh; overflow: hidden; }
 /* a control that only means something in one view is shown only in that view */
 body.panorama [data-for="look"], body:not(.panorama) [data-for="pano"] { display: none; }
 
+/* the view and the ground are always on screen: in the bar where it has room, and as a second row of it where not */
+.view-controls { display: flex; align-items: center; gap: 8px; }
+.ground { display: inline-flex; align-items: center; gap: 7px; }
+.ground[aria-pressed="true"] { border-color: #ffffff45; background: #ffffff1a; }
+.ground[aria-pressed="false"] { color: var(--ink-dim); }
+/* the mark of a sky measured to hold something below the horizon */
+.below-mark { display: none; width: 7px; height: 7px; border-radius: 50%; background: var(--lit); box-shadow: 0 0 8px var(--lit); }
+.ground.notable .below-mark { display: inline-block; }
+
+@media (max-width: 960px) {
+  .topbar { flex-wrap: wrap; }
+  .view-controls { order: 10; flex-basis: 100%; }
+  body:not(.panorama) .drag-hint { top: 112px; }
+}
+
 /* ---------------------------------------------------------------- the plate */
 
 /* over the sky in the perspective view; under a panorama the page below the sky is the plate's margin */
@@ -139,6 +154,23 @@ body.panorama .plate {
   translate: 0 -50%;
 }
 .trouble { margin: 10px 0 0; font: 12px/1.5 var(--mono); color: #ffb4a2; }
+/* the way under a panorama's horizon, offered only where the sky was measured to hold something there */
+.look-below {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 7px 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  background: transparent;
+  font: 500 12px/1 var(--sans);
+  color: var(--ink);
+  pointer-events: auto;
+}
+.look-below:hover { border-color: var(--lit); color: var(--lit); }
+.look-below .below-mark { display: inline-block; }
 
 .drag-hint {
   position: fixed;

@@ -6,9 +6,9 @@
  * does to the world, what to copy), and the sheets that are summoned and dismissed. The browsing of every sky
  * lives in `index.html`, so this page is for looking at one closely.
  */
-import { Sky } from "./sky.js?v=d719e56a33";
-import { commandButtons, effectCommands, listenForCommands, skyCommands } from "./commands.js?v=d719e56a33";
-import { readable } from "./lit.js?v=d719e56a33";
+import { Sky } from "./sky.js?v=9301d1afee";
+import { commandButtons, effectCommands, listenForCommands, skyCommands } from "./commands.js?v=9301d1afee";
+import { readable } from "./lit.js?v=9301d1afee";
 
 const $ = (id) => document.getElementById(id);
 const DAY = Sky.DAY;
@@ -37,7 +37,8 @@ function indexTables() {
   const lightById = new Map(tables.lights.map((row) => [row.id, row]));
   for (const zone of tables.zoneLights ?? []) {
     for (const param of lightById.get(zone.light)?.params ?? []) {
-      if (param) zones.set(param, [...(zones.get(param) ?? []), spaced(zone.name)]);
+      // several ZoneLight rows can name one place, and a caption names it once
+      if (param) zones.set(param, [...new Set([...(zones.get(param) ?? []), spaced(zone.name)])]);
     }
   }
   for (const row of tables.lights) {
@@ -79,6 +80,7 @@ function describe(id) {
   const skyFlags = [[1, "animates over the whole day"], [2, "combines with the procedural sky"], [4, "blends the procedural fog"], [8, "forces sun shafts"], [16, "drops the sun fog colour"]];
   const luts = new Set(param.ramp.map((s) => s.ColorGradingFileDataID).filter(Boolean));
   const map = epsilonMap()?.bySkybox.get(param.skybox);
+  const below = belowOf.get(`${Sky.state.build}:${id}`);
   const lines = [
     `LightParams ${id} on ${Sky.state.build}`,
     `  ${param.ramp.length} stops, glow ${param.glow}, highlight sky ${param.highlightSky}`,
@@ -90,7 +92,8 @@ function describe(id) {
     param.shafts ? `light shafts: ${param.shafts.length} stops, which this viewer does not draw` : "",
     preset?.where.length ? `used on: ${preset.where.join(", ")}` : "no zone or map row uses it",
     preset?.spells.length ? `skybox spells: ${preset.spells.join(", ")}` : "no skybox spell reaches it",
-    map?.displays.length ? `as a prop: ${map.spawn.join(" / ")}` : "",
+    map?.displays.length ? `as a gob: ${map.spawn.join(" / ")}` : "",
+    below ? `below the horizon: ${{ none: "fog of one colour", some: "sky worth a look", mostly: "most of the sky" }[below]}` : "",
   ];
   return lines.filter(Boolean).join("\n");
 }
@@ -103,23 +106,10 @@ function paintPlate() {
   const param = tables.params[id];
   if (!param) return;
   const preset = lookup.presets.find((p) => p.id === id);
-  const skybox = tables.skyboxes[param.skybox];
-  const others = lookup.presets.filter((p) => p.model && p.model === preset?.model).length;
   const title = preset?.title ?? `LightParams ${id}`;
   $("sky-name").textContent = title;
   document.title = `${title} — Skylook`;
-  const bits = [
-    preset?.model || "no model",
-    preset?.where.slice(0, 2).join(", "),
-    `${param.ramp.length} stop${param.ramp.length === 1 ? "" : "s"}`,
-    others > 1 ? `${others} presets share this sky` : "",
-    skybox && !(skybox.flags & 2) ? "no procedural stars" : "",
-  ].filter(Boolean);
-  // the fields are cells divided by drawn rules, and each is set as text, so a name from the tables never becomes markup
-  $("sky-caption").replaceChildren(
-    Object.assign(document.createElement("b"), { textContent: String(id) }),
-    ...bits.map((bit) => Object.assign(document.createElement("span"), { textContent: bit })),
-  );
+  paintCaption();
   // the way back lands on the gallery card this sky or effect is pictured on, when the build is the gallery's
   const card = Sky.state.screen ? `effect-${Sky.state.screen.row.fullScreen}` : `sky-${param.skybox}`;
   $("back").href = Sky.state.build === Sky.DEFAULT_BUILD ? `./index.html#${card}` : "./index.html";
@@ -128,6 +118,31 @@ function paintPlate() {
   paintWorld();
   bandDirty = true;
   writeHash();
+}
+
+/** The caption's cells: the preset, its model and places, its stops, and what the sky holds below the horizon. */
+function paintCaption() {
+  const id = Sky.state.paramId;
+  const tables = Sky.state.light;
+  const param = tables.params[id];
+  if (!param) return;
+  const preset = lookup.presets.find((p) => p.id === id);
+  const skybox = tables.skyboxes[param.skybox];
+  const others = lookup.presets.filter((p) => p.model && p.model === preset?.model).length;
+  const below = belowOf.get(presetKey());
+  const bits = [
+    preset?.model || "no model",
+    preset?.where.slice(0, 2).join(", "),
+    `${param.ramp.length} stop${param.ramp.length === 1 ? "" : "s"}`,
+    others > 1 ? `${others} presets share this sky` : "",
+    skybox && !(skybox.flags & 2) ? "no procedural stars" : "",
+    below === "mostly" ? "most of it below the horizon" : below === "some" ? "sky below the horizon" : "",
+  ].filter(Boolean);
+  // the fields are cells divided by drawn rules, and each is set as text, so a name from the tables never becomes markup
+  $("sky-caption").replaceChildren(
+    Object.assign(document.createElement("b"), { textContent: String(id) }),
+    ...bits.map((bit) => Object.assign(document.createElement("span"), { textContent: bit })),
+  );
 }
 
 /** The commands that put this sky, or the screen effect over it, into the game. */
@@ -195,6 +210,7 @@ const SAMPLES = 48;
 const SAMPLE_WIDTH = 64;
 const SAMPLE_HEIGHT = 36;
 const STOP_NOTCH = 4; // CSS px: the notch a LightData stop leaves along the band's foot
+const BAND_PITCH = 0.15; // the viewer's own opening tilt, so the band frames what a first look frames
 
 /**
  * Keep the day band current: draw the sky's day when the preset or the size changes, and move the cursor when the
@@ -223,9 +239,10 @@ function drawBand() {
  * Paint the sky's whole day, the sun and the moon over it, and its LightData stops along the foot.
  *
  * The columns are renders, not colours: a preset's own light says little about a sky whose brightness comes from a
- * painted dome, so each column is the view at that hour. A sample faces the way the page does but is tilted up by
- * half the client's field of view, so the horizon is its lower edge and the ground stays out of the band. The sun
- * and the moon are drawn only while they are up, from the horizon at the foot to overhead at the top.
+ * painted dome, so each column is the view at that hour. A sample faces the way the page does at the viewer's
+ * opening tilt, about 28 degrees below the horizon to 45 above, with the ground left out: a sky zone, a cave or the
+ * edge of Outland shows what the dome holds below the horizon, so the band does too. A hairline marks the horizon,
+ * and the sun and the moon are drawn across the whole band, dashed while they are below it.
  */
 function paintBand(param, width, height, ratio) {
   const sample = document.createElement("canvas");
@@ -237,9 +254,10 @@ function paintBand(param, width, height, ratio) {
   strip.height = SAMPLE_HEIGHT;
   const onto = strip.getContext("2d");
   const now = performance.now();
-  const kept = { pitch: Sky.LOOK.pitch, fov: Sky.fov() };
+  const kept = { pitch: Sky.LOOK.pitch, fov: Sky.fov(), ground: Sky.state.layers.ground };
   Sky.setFov(Sky.DEFAULT_FOV);
-  Sky.LOOK.pitch = (Sky.DEFAULT_FOV / 2) * (Math.PI / 180);
+  Sky.LOOK.pitch = BAND_PITCH;
+  Sky.state.layers.ground = false;
   try {
     for (let i = 0; i < SAMPLES; i++) {
       const frame = Sky.renderLook(SAMPLE_WIDTH, ((i + 0.5) / SAMPLES) * DAY, now, SAMPLE_HEIGHT);
@@ -249,6 +267,7 @@ function paintBand(param, width, height, ratio) {
   } finally {
     Sky.LOOK.pitch = kept.pitch;
     Sky.setFov(kept.fov);
+    Sky.state.layers.ground = kept.ground;
   }
 
   bandCtx.save();
@@ -257,27 +276,43 @@ function paintBand(param, width, height, ratio) {
   bandCtx.imageSmoothingQuality = "high";
   bandCtx.drawImage(strip, 0, 0, SAMPLES, SAMPLE_HEIGHT, 0, 0, width, height);
 
-  // the sun and the moon while they are up: the reason one hour of a sky looks nothing like another
+  // where an elevation falls in a sample: the sample is a perspective view, so its rows go by the tangent
+  const halfField = Math.tan(((Sky.DEFAULT_FOV / 2) * Math.PI) / 180);
+  const rowOf = (elevation) => {
+    const angle = clamp((elevation * Math.PI) / 180 - BAND_PITCH, -1.55, 1.55);
+    return height / 2 - (Math.tan(angle) / halfField) * (height / 2);
+  };
+
+  // the horizon, so what lies below it reads as below
+  bandCtx.globalAlpha = 0.28;
+  bandCtx.fillStyle = "#ffffff";
+  bandCtx.fillRect(0, Math.round(rowOf(0)), width, Math.max(1, Math.round(ratio)));
+
+  // the sun and the moon: the reason one hour of a sky looks nothing like another, dashed while below the horizon
   bandCtx.lineWidth = 1.5 * ratio;
   bandCtx.lineCap = "round";
   bandCtx.lineJoin = "round";
   bandCtx.shadowColor = "#000000aa";
   bandCtx.shadowBlur = 3 * ratio;
   for (const [path, colour] of [[Sky.sunDirection, "#ffe6a3"], [(_, time) => Sky.moonDirection(time), "#c4d8ff"]]) {
-    bandCtx.beginPath();
-    let drawing = false;
-    for (let x = 0; x <= width; x += ratio) {
-      const direction = path(param, (x / width) * DAY);
-      const elevation = (Math.asin(clamp(direction.z, -1, 1)) * 180) / Math.PI;
-      if (elevation < 0) { drawing = false; continue; }
-      const y = height - (Math.min(elevation, 90) / 90) * height;
-      if (drawing) bandCtx.lineTo(x, y); else bandCtx.moveTo(x, y);
-      drawing = true;
+    for (const up of [true, false]) {
+      bandCtx.beginPath();
+      let drawing = false;
+      for (let x = 0; x <= width; x += ratio) {
+        const direction = path(param, (x / width) * DAY);
+        const elevation = (Math.asin(clamp(direction.z, -1, 1)) * 180) / Math.PI;
+        if ((elevation >= 0) !== up) { drawing = false; continue; }
+        const y = rowOf(elevation);
+        if (drawing) bandCtx.lineTo(x, y); else bandCtx.moveTo(x, y);
+        drawing = true;
+      }
+      bandCtx.setLineDash(up ? [] : [3 * ratio, 3 * ratio]);
+      bandCtx.strokeStyle = colour;
+      bandCtx.globalAlpha = up ? 0.9 : 0.4;
+      bandCtx.stroke();
     }
-    bandCtx.strokeStyle = colour;
-    bandCtx.globalAlpha = 0.9;
-    bandCtx.stroke();
   }
+  bandCtx.setLineDash([]);
 
   // a notch for each LightData stop along the foot, which is where the sky actually turns
   bandCtx.shadowBlur = 0;
@@ -299,6 +334,120 @@ const scrubTo = (event) => {
 bandWrap.addEventListener("pointerdown", (event) => { scrubbing = true; bandWrap.setPointerCapture(event.pointerId); scrubTo(event); });
 bandWrap.addEventListener("pointermove", (event) => { if (scrubbing) scrubTo(event); });
 bandWrap.addEventListener("pointerup", () => { scrubbing = false; writeHash(); });
+
+// ---------------------------------------------------------------- what lies below the horizon
+
+// thresholds on a lower half's edge detail and brightness spread, and on its detail against the upper half's
+const FLAT_DETAIL = 0.002;
+const FLAT_SPREAD = 0.03;
+const MOSTLY_BELOW = 1.2;
+const LOOK_DOWN = -0.6; // radians: the tilt "Look below the horizon" opens the perspective view at
+/** What each measured preset holds below the horizon, "none", "some" or "mostly", keyed by build and preset. */
+const belowOf = new Map();
+const presetKey = () => `${Sky.state.build}:${Sky.state.paramId}`;
+const groundButton = $("ground");
+const groundBox = document.querySelector('#layers [data-layer="ground"]');
+const lookBelow = $("look-below");
+let groundChosen = false; // a person's own choice of ground outlasts every sky's default
+
+/** The edge detail and the brightness spread of a rendered picture. */
+function textureOf({ width, height, rgba }) {
+  const light = new Float32Array(width * height);
+  let sum = 0;
+  for (let i = 0; i < light.length; i++) {
+    light[i] = (0.2126 * rgba[i * 4] + 0.7152 * rgba[i * 4 + 1] + 0.0722 * rgba[i * 4 + 2]) / 255;
+    sum += light[i];
+  }
+  const mean = sum / light.length;
+  let variance = 0, edges = 0, pairs = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      variance += (light[i] - mean) ** 2;
+      if (x + 1 < width) { edges += Math.abs(light[i + 1] - light[i]); pairs++; }
+      if (y + 1 < height) { edges += Math.abs(light[i + width] - light[i]); pairs++; }
+    }
+  }
+  return { detail: edges / pairs, spread: Math.sqrt(variance / light.length) };
+}
+
+/**
+ * What a sky holds below the horizon, measured from the sky itself rather than declared. With the ground left out,
+ * the view is drawn looking halfway down and halfway up in four directions at three hours. A lower half with next to
+ * no edge detail and little spread is fog of one colour and holds nothing; one with more detail than the upper half
+ * is a sky that lies mostly below; anything between holds something worth a look.
+ */
+function surveyBelow() {
+  const kept = { yaw: Sky.LOOK.yaw, pitch: Sky.LOOK.pitch, fov: Sky.fov(), ground: Sky.state.layers.ground };
+  const below = { detail: 0, spread: 0 }, above = { detail: 0, spread: 0 };
+  let samples = 0;
+  const now = performance.now();
+  Sky.state.layers.ground = false;
+  Sky.setFov(90);
+  try {
+    for (const time of [DAY / 4, DAY / 2, (DAY * 3) / 4]) {
+      for (let turn = 0; turn < 4; turn++) {
+        Sky.LOOK.yaw = (turn * Math.PI) / 2;
+        for (const [half, pitch] of [[below, -Math.PI / 4], [above, Math.PI / 4]]) {
+          Sky.LOOK.pitch = pitch;
+          const { detail, spread } = textureOf(Sky.renderLook(64, time, now, 64));
+          half.detail += detail;
+          half.spread += spread;
+        }
+        samples++;
+      }
+    }
+  } finally {
+    Sky.LOOK.yaw = kept.yaw;
+    Sky.LOOK.pitch = kept.pitch;
+    Sky.setFov(kept.fov);
+    Sky.state.layers.ground = kept.ground;
+  }
+  if (below.detail / samples < FLAT_DETAIL && below.spread / samples < FLAT_SPREAD) return "none";
+  return below.detail >= MOSTLY_BELOW * above.detail ? "mostly" : "some";
+}
+
+/** Measure a preset once its sky has arrived, and give the ground the default that sky wants, unless a person chose. */
+function surveyWhenSettled() {
+  if (!Sky.state.light?.params[Sky.state.paramId] || belowOf.has(presetKey())) return;
+  const pending = Sky.pending();
+  if (pending.texPending || pending.loading) return;
+  const below = surveyBelow();
+  belowOf.set(presetKey(), below);
+  // a sky model knows nothing of terrain, so any sky with something below the horizon is shown with it: a floating
+  // zone and a ground zone measure alike, and only a lower half of flat fog keeps the ground
+  if (!groundChosen) Sky.state.layers.ground = below === "none";
+  paintCaption();
+  $("detail-text").textContent = describe(Sky.state.paramId);
+}
+
+/** The ground switch and the Details checkbox say whether the ground is drawn, and mark a sky with more under it. */
+function paintGround() {
+  const on = Sky.state.layers.ground;
+  if (groundButton.getAttribute("aria-pressed") !== String(on)) groundButton.setAttribute("aria-pressed", String(on));
+  if (groundBox.checked !== on) groundBox.checked = on;
+  const below = belowOf.get(presetKey());
+  const notable = below === "some" || below === "mostly";
+  if (groundButton.classList.contains("notable") !== notable) {
+    groundButton.classList.toggle("notable", notable);
+    groundButton.title = notable ? "This sky holds more below the horizon, which the ground hides (g)" : "The ground under the horizon (g)";
+  }
+  if (lookBelow.hidden === notable) lookBelow.hidden = !notable;
+}
+
+/** Draw the ground or leave it out, by a person's own hand. */
+function setGround(on) {
+  Sky.state.layers.ground = on;
+  groundChosen = true;
+}
+groundButton.addEventListener("click", () => setGround(!Sky.state.layers.ground));
+lookBelow.addEventListener("click", () => {
+  // the perspective view, tilted down, with the ground out of the way for this sky
+  Sky.state.pano = false;
+  Sky.LOOK.pitch = LOOK_DOWN;
+  Sky.state.layers.ground = false;
+  writeHash();
+});
 
 // ---------------------------------------------------------------- the interface is lit by the sky it shows
 
@@ -493,7 +642,11 @@ $("save-loop").addEventListener("click", () => exporting(async () => {
 
 $("layers").addEventListener("change", (event) => {
   const box = event.target.closest("[data-layer]");
-  if (box) Sky.state.layers[box.dataset.layer] = box.checked;
+  if (box) {
+    Sky.state.layers[box.dataset.layer] = box.checked;
+    if (box.dataset.layer === "ground") groundChosen = true;
+    bandDirty = true; // the band is drawn with the layers on screen, the ground apart
+  }
 });
 $("body").addEventListener("change", (event) => {
   Sky.state.body = event.target.value;
@@ -591,6 +744,7 @@ function paintView() {
     paintTake();
     writeHash();
   }
+  paintGround();
   for (const button of viewButtons) {
     const on = String((button.dataset.view === "pano") === Sky.state.pano);
     if (button.getAttribute("aria-pressed") !== on) button.setAttribute("aria-pressed", on);
@@ -629,7 +783,8 @@ document.addEventListener("keydown", (event) => {
     case "ArrowLeft": Sky.state.time = (Sky.state.time - step + DAY) % DAY; break;
     case "ArrowRight": Sky.state.time = (Sky.state.time + step) % DAY; break;
     case "p": setView(!Sky.state.pano); break;
-    case "r": Sky.LOOK.yaw = 0; Sky.LOOK.pitch = 0.15; Sky.setFov(Sky.DEFAULT_FOV); writeHash(); break;
+    case "g": if (!Sky.state.pano) setGround(!Sky.state.layers.ground); break;
+    case "r": Sky.LOOK.yaw = 0; Sky.LOOK.pitch = BAND_PITCH; Sky.setFov(Sky.DEFAULT_FOV); writeHash(); break;
     case "s": if (!Sky.state.pano) toggleSheet("effects"); break;
     case "e": toggleSheet("export"); break;
     case "d": toggleSheet("detail"); break;
@@ -716,6 +871,7 @@ Sky.on("frame", ({ time, loading, error, light, sun }) => {
   lastLight = light;
   applyAccent(light, (Math.asin(clamp(sun.z, -1, 1)) * 180) / Math.PI);
   drawBand();
+  surveyWhenSettled();
   if (Sky.state.playing || scrubbing || !$("world").children.length) paintWorld(light);
   paintStatus(loading, error);
 });

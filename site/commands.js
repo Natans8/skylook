@@ -4,7 +4,7 @@
  * only place a touch screen ever shows it.
  */
 
-/** A sky's commands: the zone and area phase skies, the aura and the cast by its spell, and the prop by its display. */
+/** A sky's commands: the zone and area phase skies, the aura and the cast by its spell, and the gob by its display. */
 export function skyCommands(spell, spawn) {
   const commands = [];
   if (spell) {
@@ -15,7 +15,7 @@ export function skyCommands(spell, spawn) {
       { label: "Cast", command: `.cast ${spell}` },
     );
   }
-  if (spawn) commands.push({ label: "Prop", command: spawn });
+  if (spawn) commands.push({ label: "Gob spawn", command: spawn });
   return commands;
 }
 

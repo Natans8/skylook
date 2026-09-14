@@ -22,8 +22,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://wago.tools" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="./base.css?v=d719e56a33">
-<link rel="stylesheet" href="./app.css?v=d719e56a33">
+<link rel="stylesheet" href="./base.css?v=9301d1afee">
+<link rel="stylesheet" href="./app.css?v=9301d1afee">
 </head>
 <body class="panorama">
 <canvas id="gl" aria-label="The sky, drawn. Drag to look around."></canvas>
@@ -33,9 +33,12 @@
   <button type="button" class="finder" id="open-find"><span>Find a sky</span><kbd aria-hidden="true">/</kbd></button>
   <div class="bar-build" id="bar-build"><select id="build" class="build" aria-label="Game build"></select></div>
   <div class="spacer"></div>
-  <div class="segmented bar-only" role="group" aria-label="View">
-    <button type="button" data-view="pano" aria-pressed="true">Panorama</button>
-    <button type="button" data-view="look" aria-pressed="false">Perspective</button>
+  <div class="view-controls">
+    <div class="segmented" role="group" aria-label="View">
+      <button type="button" data-view="pano" aria-pressed="true">Panorama</button>
+      <button type="button" data-view="look" aria-pressed="false">Perspective</button>
+    </div>
+    <button type="button" class="rail ground" id="ground" data-for="look" aria-pressed="true" title="The ground under the horizon (g)"><span class="below-mark" aria-hidden="true"></span>Ground</button>
   </div>
   <button type="button" class="rail bar-only" data-sheet="effects" data-for="look" title="Screen effect (s)">Screen effect</button>
   <button type="button" class="rail bar-only" data-sheet="export" title="Export a picture or a loop (e)">Export</button>
@@ -46,6 +49,7 @@
 <div class="plate">
   <h1 id="sky-name">Skylook</h1>
   <p class="caption" id="sky-caption"></p>
+  <button type="button" class="look-below" id="look-below" data-for="pano" hidden><span class="below-mark" aria-hidden="true"></span>Look below the horizon</button>
   <p class="trouble" id="sky-trouble" role="alert" hidden></p>
 </div>
 
@@ -78,13 +82,6 @@
 
 <dialog class="sheet menu" id="menu" closedby="any" aria-labelledby="menu-title">
   <h2 id="menu-title">More</h2>
-  <div class="menu-row">
-    <span class="menu-label" id="menu-view-label">View</span>
-    <div class="segmented" role="group" aria-labelledby="menu-view-label">
-      <button type="button" data-view="pano" aria-pressed="true">Panorama</button>
-      <button type="button" data-view="look" aria-pressed="false">Perspective</button>
-    </div>
-  </div>
   <div class="menu-row">
     <span class="menu-label">Build</span>
     <div id="menu-build"></div>
@@ -162,14 +159,14 @@
 </dialog>
 
 <footer class="keys" aria-hidden="true">
-  <span><b>/</b> find</span><span><b>space</b> play</span><span><b>arrows</b> hour</span><span><b>p</b> view</span><span><b>r</b> recentre</span><span data-for="look"><b>s</b> effect</span><span><b>e</b> export</span><span><b>d</b> details</span>
+  <span><b>/</b> find</span><span><b>space</b> play</span><span><b>arrows</b> hour</span><span><b>p</b> view</span><span data-for="look"><b>g</b> ground</span><span><b>r</b> recentre</span><span data-for="look"><b>s</b> effect</span><span><b>e</b> export</span><span><b>d</b> details</span>
 </footer>
 
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
   // the engine needs WebGL 2; without it the import fails, and the page says so rather than waiting forever
-  import("./app.js?v=d719e56a33").catch((error) => {
+  import("./app.js?v=9301d1afee").catch((error) => {
     console.error(error);
     document.getElementById("waiting").hidden = true;
     document.getElementById("sky-name").textContent = "The sky could not be drawn";
