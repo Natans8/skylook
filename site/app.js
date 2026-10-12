@@ -6,10 +6,10 @@
  * does to the world, what to copy), and the sheets that are summoned and dismissed. The browsing of every sky
  * lives in `index.html`, so this page is for looking at one closely.
  */
-import { Sky } from "./sky.js?v=a2c139cf7d";
-import { commandButtons, effectCommands, listenForCommands, skyCommands } from "./commands.js?v=a2c139cf7d";
-import { readable } from "./lit.js?v=a2c139cf7d";
-import { EXTREME_MOTION, measureMotion, motionWarning } from "./motion.js?v=a2c139cf7d";
+import { Sky } from "./sky.js?v=794313fcf6";
+import { commandButtons, effectCommands, listenForCommands, skyCommands } from "./commands.js?v=794313fcf6";
+import { readable } from "./lit.js?v=794313fcf6";
+import { EXTREME_MOTION, measureMotion, motionWarning } from "./motion.js?v=794313fcf6";
 
 const $ = (id) => document.getElementById(id);
 const DAY = Sky.DAY;

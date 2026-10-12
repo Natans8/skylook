@@ -2,12 +2,12 @@
 // approximate celestial layer, drawn the way the client layers them, for every roster build from Classic Era to
 // Midnight. It owns the canvas and nothing else on the page: `app.js` is the interface, and reaches everything
 // through the `Sky` export at the foot of this file.
-import * as THREE from "./lib/three.module.js?v=a2c139cf7d";
-import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=a2c139cf7d";
-import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=a2c139cf7d";
-import { cloudNoise } from "./ts.raster.js?v=a2c139cf7d";
-import { gifEncoder, videoEncoder } from "./encode.js?v=a2c139cf7d";
-import { TABLES_URL } from "./assets.js?v=a2c139cf7d";
+import * as THREE from "./lib/three.module.js?v=794313fcf6";
+import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=794313fcf6";
+import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=794313fcf6";
+import { cloudNoise } from "./ts.raster.js?v=794313fcf6";
+import { gifEncoder, videoEncoder } from "./encode.js?v=794313fcf6";
+import { TABLES_URL } from "./assets.js?v=794313fcf6";
 
 const DAY = 2880; // the client's day, in half-minutes
 const DEFAULT_BUILD = "9.2.7.45745";
