@@ -56,6 +56,8 @@ function lightAt(param, t) {
   else if (aa >= 1) [sunAngle, sunStrength] = [ab, b.SunFogStrength * k];
   else if (ab >= 1) [sunAngle, sunStrength] = [aa, a.SunFogStrength * (1 - k)];
   else [sunAngle, sunStrength] = [aa + (ab - aa) * k, a.SunFogStrength + (b.SunFogStrength - a.SunFogStrength) * k];
+  sunStrength *= interp(SUN_HALO, t / DAY);
+  if (param.flags & 4) [sunAngle, sunStrength] = [1, 0];
   return {
     cone: [col("SkyTopColor"), col("SkyMiddleColor"), col("SkyBand1Color"), col("SkyBand2Color"), col("SkySmogColor"), col("SkyFogColor")],
     endFog: mix3(endFog(a), endFog(b), k),
@@ -75,6 +77,9 @@ function lightAt(param, t) {
 var SUN_PHI = [[0.25, 1.7453293], [0.49652779, 0.08726646], [0.5, 0.08726646], [0.50347221, 0.08726646], [0.79166669, 1.7453293]];
 var MOON_PHI = [[0, 0.61086524], [0.0034722222, 0.61086524], [0.16666667, 1.7453293], [0.89583331, 1.7453293], [0.99652779, 0.61086524]];
 var THETA = 0.78539819;
+var SUN_HALO = [[0.27083334, 0], [0.29166666, 1], [0.75, 1], [0.77083331, 0]];
+var SUN_SCALE = [[0.27083334, 2], [0.30208334, 1], [0.73958331, 1], [0.77083331, 2]];
+var MOON_SCALE = [[0.041666668, 1], [0.16666667, 1.5], [0.89583331, 1.5], [0.97847223, 1]];
 function interp(tab, x) {
   if (x <= tab[0][0]) return tab[0][1];
   for (let i = 1; i < tab.length; i++) {
@@ -89,6 +94,8 @@ function vector(tab, t) {
 }
 var sunDirection = (t) => vector(SUN_PHI, t);
 var moonDirection = (t) => vector(MOON_PHI, t);
+var sunScale = (t) => interp(SUN_SCALE, t / DAY);
+var moonScale = (t) => interp(MOON_SCALE, t / DAY);
 
 // ts/m2.ts
 var identity = () => new Float64Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
@@ -631,6 +638,8 @@ async function renderPreview(input) {
   const celestials = procedural && input.celestials !== false;
   const hideSun = !celestials || (param.flags & 4) !== 0 || sun[2] <= -0.15;
   const hideMoon = !celestials || (param.flags & 8) !== 0 || moon[2] <= -0.1;
+  const sunRadius = 9 * sunScale(time), moonRadius = 3.5 * moonScale(time);
+  const cosSun = Math.cos(sunRadius * Math.PI / 180), cosMoon = Math.cos(moonRadius * Math.PI / 180);
   for (let py = 0; py < h; py++) {
     for (let pxl = 0; pxl < w; pxl++) {
       direction((pxl + 0.5) / w, (py + 0.5) / h, d);
@@ -641,15 +650,13 @@ async function renderPreview(input) {
         k = elev < -0.4 ? 1 : k * k;
         for (let ch = 0; ch < 3; ch++) c[ch] += (light.endFog[ch] - c[ch]) * k;
       }
-      if (!hideSun && dot(d, sun) > COS_SUN) {
-        const k = Math.pow(Math.min(Math.max(1 - angle(d, sun) / 9, 0), 1), 2.5);
+      if (!hideSun && dot(d, sun) > cosSun) {
+        const k = Math.pow(Math.min(Math.max(1 - angle(d, sun) / sunRadius, 0), 1), 2.5);
         for (let ch = 0; ch < 3; ch++) c[ch] += k * light.sun[ch] * 1.2;
       }
-      if (!hideMoon && dot(d, moon) > COS_MOON) {
-        const k = Math.sqrt(Math.min(Math.max(1 - angle(d, moon) / 3.5, 0), 1));
-        c[0] += k * 0.765;
-        c[1] += k * 0.81;
-        c[2] += k * 0.9;
+      if (!hideMoon && dot(d, moon) > cosMoon) {
+        const k = Math.sqrt(Math.min(Math.max(1 - angle(d, moon) / moonRadius, 0), 1));
+        for (let ch = 0; ch < 3; ch++) c[ch] += k * light.sun[ch];
       }
       const o = (py * w + pxl) * 4;
       rgba[o] = c[0] * 255;
@@ -661,8 +668,6 @@ async function renderPreview(input) {
   return { width: w, height: h, rgba };
 }
 var angle = (a, b) => Math.acos(Math.max(-1, Math.min(1, dot(a, b)))) * 180 / Math.PI;
-var COS_SUN = Math.cos(9 * Math.PI / 180);
-var COS_MOON = Math.cos(3.5 * Math.PI / 180);
 var blank = () => ({ width: 1, height: 1, rgba: new Float32Array([0, 0, 0, 0]), wrapX: false, wrapY: false });
 export {
   PROJECTIONS,

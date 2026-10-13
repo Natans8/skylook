@@ -2,12 +2,12 @@
 // approximate celestial layer, drawn the way the client layers them, for every roster build from Classic Era to
 // Midnight. It owns the canvas and nothing else on the page: `app.js` is the interface, and reaches everything
 // through the `Sky` export at the foot of this file.
-import * as THREE from "./lib/three.module.js?v=794313fcf6";
-import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=794313fcf6";
-import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=794313fcf6";
-import { cloudNoise } from "./ts.raster.js?v=794313fcf6";
-import { gifEncoder, videoEncoder } from "./encode.js?v=794313fcf6";
-import { TABLES_URL } from "./assets.js?v=794313fcf6";
+import * as THREE from "./lib/three.module.js?v=6570bde9c2";
+import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=6570bde9c2";
+import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=6570bde9c2";
+import { cloudNoise } from "./ts.raster.js?v=6570bde9c2";
+import { gifEncoder, videoEncoder } from "./encode.js?v=6570bde9c2";
+import { TABLES_URL } from "./assets.js?v=6570bde9c2";
 
 const DAY = 2880; // the client's day, in half-minutes
 const DEFAULT_BUILD = "9.2.7.45745";
@@ -91,6 +91,9 @@ function evalLight(param, t) {
   else if (A.SunFogAngle >= 1) { out.sunAngle = B.SunFogAngle; out.sunStrength = B.SunFogStrength * k; }
   else if (B.SunFogAngle >= 1) { out.sunAngle = A.SunFogAngle; out.sunStrength = A.SunFogStrength * (1 - k); }
   else { out.sunAngle = num("SunFogAngle"); out.sunStrength = num("SunFogStrength"); }
+  // the halo fades with the hour, so it is gone at night, and a preset that hides the sun hides its halo too
+  out.sunStrength *= dayCurve(SUN_HALO, t);
+  if (param.flags & 4) { out.sunAngle = 1; out.sunStrength = 0; }
   return out;
 }
 
@@ -99,6 +102,13 @@ const SUN_PHI = [[0.25, 1.7453293], [0.49652779, 0.08726646], [0.5, 0.08726646],
 const SUN_THETA = [[0.25, 0.78539819], [0.5, 0.78539819], [0.79166669, 0.78539819]];
 const MOON_PHI = [[0, 0.61086524], [0.0034722222, 0.61086524], [0.16666667, 1.7453293], [0.89583331, 1.7453293], [0.99652779, 0.61086524]];
 const MOON_THETA = [[0, 0.78539819], [0.16666667, 0.78539819], [0.89583331, 0.78539819]];
+// the client's other day curves, from the same table block as the paths: the sun halo's strength, the sun's and the
+// moon's disc scale, and the stars' brightness
+const SUN_HALO = [[0.27083334, 0], [0.29166666, 1], [0.75, 1], [0.77083331, 0]];
+const SUN_SCALE = [[0.27083334, 2], [0.30208334, 1], [0.73958331, 1], [0.77083331, 2]];
+const MOON_SCALE = [[0.041666668, 1], [0.16666667, 1.5], [0.89583331, 1.5], [0.97847223, 1]];
+const STAR_BRIGHTNESS = [[0.14583333, 1], [0.20833333, 0], [0.83333331, 0], [0.89583331, 1]];
+const dayCurve = (tab, t) => interpTable(tab, t / DAY);
 function interpTable(tab, x) {
   if (x <= tab[0][0]) return tab[0][1];
   for (let i = 1; i < tab.length; i++) {
@@ -1286,14 +1296,22 @@ function updateScene(nowMs, time = state.time) {
   sunSprite.visible = cel && !(param.flags & 4) && sunDir.z > -0.15;
   sunSprite.position.copy(sunDir).multiplyScalar(1500);
   sunSprite.lookAt(0, 0, 0);
+  // both discs are tinted by the preset's sun colour and sized by the client's curves: the sun twice as large at the
+  // horizon, the moon half as large again through the night
+  sunSprite.scale.setScalar(dayCurve(SUN_SCALE, time));
   sunSprite.material.color.setRGB(...L.sun);
   sunSprite.material.opacity = clamp((sunDir.z + 0.15) * 6, 0, 1);
   moonSprite.visible = cel && !(param.flags & 8) && moonDir.z > -0.1;
   moonSprite.position.copy(moonDir).multiplyScalar(1500);
   moonSprite.lookAt(0, 0, 0);
+  moonSprite.scale.setScalar(dayCurve(MOON_SCALE, time));
+  moonSprite.material.color.setRGB(...L.sun);
   moonSprite.material.opacity = clamp((moonDir.z + 0.1) * 5, 0, 1) * (1 - daylight * 0.6);
-  stars.visible = cel && !(param.flags & 16) && daylight < 0.98;
-  stars.material.opacity = (1 - daylight) * 0.9;
+  // the client keeps the stars' brightness as the alpha byte of their colour, from 1 to 255; at the floor of 1 they
+  // are left out, as WebWowViewerCpp does
+  const starByte = Math.trunc(dayCurve(STAR_BRIGHTNESS, time) * 254 + 1);
+  stars.visible = cel && !(param.flags & 16) && starByte >= 2;
+  stars.material.opacity = starByte / 255;
   bodyLayer.mesh.visible = cel && !!bodyLayer.row;
   bodyLayer.update(nowMs, daylight);
   ground.visible = state.layers.ground;
