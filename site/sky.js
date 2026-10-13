@@ -2,12 +2,12 @@
 // approximate celestial layer, drawn the way the client layers them, for every roster build from Classic Era to
 // Midnight. It owns the canvas and nothing else on the page: `app.js` is the interface, and reaches everything
 // through the `Sky` export at the foot of this file.
-import * as THREE from "./lib/three.module.js?v=5da467367f";
-import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=5da467367f";
-import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=5da467367f";
-import { cloudNoise } from "./ts.raster.js?v=5da467367f";
-import { gifEncoder, videoEncoder } from "./encode.js?v=5da467367f";
-import { TABLES_URL } from "./assets.js?v=5da467367f";
+import * as THREE from "./lib/three.module.js?v=3c24d5d384";
+import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=3c24d5d384";
+import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=3c24d5d384";
+import { cloudNoise } from "./ts.raster.js?v=3c24d5d384";
+import { gifEncoder, videoEncoder } from "./encode.js?v=3c24d5d384";
+import { TABLES_URL } from "./assets.js?v=3c24d5d384";
 
 const DAY = 2880; // the client's day, in half-minutes
 const DEFAULT_BUILD = "9.2.7.45745";
@@ -330,6 +330,12 @@ const stars = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THREE.Me
 stars.renderOrder = 5; scene.add(stars);
 const ground = new THREE.Mesh(new THREE.CircleGeometry(3000, 64), new THREE.MeshBasicMaterial({ color: 0x000000, depthTest: false, depthWrite: false }));
 ground.position.z = -60; ground.rotation.z = Math.PI; ground.renderOrder = 6; scene.add(ground); // the disc seam points backward, or it draws a hairline down the default view
+// The sun, the moon and the stars are blended after the opaque ground whatever their order, so while the ground is
+// shown each is clipped at its rim, 60 below the camera over 3000 across, scaled to the sphere it sits on. The ground
+// keeps covering the sky models as before.
+renderer.localClippingEnabled = true;
+const belowGround = (radius) => [new THREE.Plane(new THREE.Vector3(0, 0, 1), (60 / 3000) * radius)];
+const groundClips = [[sunSprite, belowGround(1500)], [moonSprite, belowGround(1500)], [stars, belowGround(900)]];
 
 // A black backdrop for judging a screen effect on its own, nothing else in the scene.
 const backdrop = new THREE.Mesh(new THREE.SphereGeometry(1000, 24, 16), new THREE.ShaderMaterial({
@@ -1318,6 +1324,7 @@ function updateScene(nowMs, time = state.time) {
   bodyLayer.update(nowMs, daylight);
   ground.visible = state.layers.ground;
   ground.material.color.setRGB(L.endFog[0] * 0.55, L.endFog[1] * 0.55, L.endFog[2] * 0.55);
+  for (const [mesh, planes] of groundClips) mesh.material.clippingPlanes = state.layers.ground ? planes : null;
   if (state.skybox) {
     state.skybox.root.visible = state.layers.model;
     if (state.layers.model) state.skybox.update(time / DAY, nowMs);
