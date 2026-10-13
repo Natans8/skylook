@@ -2,12 +2,12 @@
 // approximate celestial layer, drawn the way the client layers them, for every roster build from Classic Era to
 // Midnight. It owns the canvas and nothing else on the page: `app.js` is the interface, and reaches everything
 // through the `Sky` export at the foot of this file.
-import * as THREE from "./lib/three.module.js?v=6570bde9c2";
-import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=6570bde9c2";
-import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=6570bde9c2";
-import { cloudNoise } from "./ts.raster.js?v=6570bde9c2";
-import { gifEncoder, videoEncoder } from "./encode.js?v=6570bde9c2";
-import { TABLES_URL } from "./assets.js?v=6570bde9c2";
+import * as THREE from "./lib/three.module.js?v=a7140869ee";
+import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=a7140869ee";
+import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=a7140869ee";
+import { cloudNoise } from "./ts.raster.js?v=a7140869ee";
+import { gifEncoder, videoEncoder } from "./encode.js?v=a7140869ee";
+import { TABLES_URL } from "./assets.js?v=a7140869ee";
 
 const DAY = 2880; // the client's day, in half-minutes
 const DEFAULT_BUILD = "9.2.7.45745";
@@ -1296,8 +1296,8 @@ function updateScene(nowMs, time = state.time) {
   sunSprite.visible = cel && !(param.flags & 4) && sunDir.z > -0.15;
   sunSprite.position.copy(sunDir).multiplyScalar(1500);
   sunSprite.lookAt(0, 0, 0);
-  // both discs are tinted by the preset's sun colour and sized by the client's curves: the sun twice as large at the
-  // horizon, the moon half as large again through the night
+  // both discs are tinted by the preset's sun colour and sized by the client's curves, each larger near the horizon:
+  // the sun twice its noon size, the moon about 1.4 times its midnight size
   sunSprite.scale.setScalar(dayCurve(SUN_SCALE, time));
   sunSprite.material.color.setRGB(...L.sun);
   sunSprite.material.opacity = clamp((sunDir.z + 0.15) * 6, 0, 1);
