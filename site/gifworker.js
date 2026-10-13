@@ -4,7 +4,7 @@
  * This is gifski's single-threaded build. The threaded one needs the page to be cross-origin isolated, which takes
  * response headers a static host cannot send.
  */
-import init, { encode } from "./lib/gifski/pkg/gifski_wasm.js?v=a7140869ee";
+import init, { encode } from "./lib/gifski/pkg/gifski_wasm.js?v=5da467367f";
 
 self.onmessage = async ({ data }) => {
   try {

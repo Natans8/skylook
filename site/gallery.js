@@ -4,10 +4,10 @@
  * `index.json` are written by `gallery_batch.js`.
  */
 
-import {CONDITIONS} from "./ts.gallerycards.js?v=a7140869ee";
-import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=a7140869ee";
-import {readable} from "./lit.js?v=a7140869ee";
-import {EXTREME_MOTION, loadMotion, motionWarning} from "./motion.js?v=a7140869ee";
+import {CONDITIONS} from "./ts.gallerycards.js?v=5da467367f";
+import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=5da467367f";
+import {readable} from "./lit.js?v=5da467367f";
+import {EXTREME_MOTION, loadMotion, motionWarning} from "./motion.js?v=5da467367f";
 
 const params = new URLSearchParams(location.search);
 const BUILD = params.get("build") || "9.2.7.45745";

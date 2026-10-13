@@ -30,7 +30,7 @@ export function gifEncoder({ count, width, height, fps, quality }) {
     },
     finish() {
       return new Promise((resolve, reject) => {
-        const worker = new Worker(new URL("./gifworker.js?v=a7140869ee", import.meta.url), { type: "module" });
+        const worker = new Worker(new URL("./gifworker.js?v=5da467367f", import.meta.url), { type: "module" });
         worker.onmessage = ({ data }) => {
           worker.terminate();
           if (data.error) reject(new Error(`the GIF encoder failed: ${data.error}`));
@@ -66,7 +66,7 @@ function videoQuality(mediabunny, quality) {
 export async function videoEncoder({ format, width, height, fps, quality }) {
   const kind = VIDEO[format];
   if (!kind) throw new Error(`unknown format ${format}`);
-  const mediabunny = await import("./lib/mediabunny.min.js?v=a7140869ee");
+  const mediabunny = await import("./lib/mediabunny.min.js?v=5da467367f");
   const evenWidth = width & ~1, evenHeight = height & ~1;
   const level = videoQuality(mediabunny, quality);
   if (!(await mediabunny.canEncodeVideo(kind.codec, { width: evenWidth, height: evenHeight, bitrate: level }))) {

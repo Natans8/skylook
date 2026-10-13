@@ -2,12 +2,12 @@
 // approximate celestial layer, drawn the way the client layers them, for every roster build from Classic Era to
 // Midnight. It owns the canvas and nothing else on the page: `app.js` is the interface, and reaches everything
 // through the `Sky` export at the foot of this file.
-import * as THREE from "./lib/three.module.js?v=a7140869ee";
-import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=a7140869ee";
-import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=a7140869ee";
-import { cloudNoise } from "./ts.raster.js?v=a7140869ee";
-import { gifEncoder, videoEncoder } from "./encode.js?v=a7140869ee";
-import { TABLES_URL } from "./assets.js?v=a7140869ee";
+import * as THREE from "./lib/three.module.js?v=5da467367f";
+import { loadM2, loadBlpInto, placeholderTexture } from "./wowload.js?v=5da467367f";
+import { FFX_SCROLL_SPEED, NO_BLEND_SET, ffxConstants, ffxTextures } from "./ts.ffx.js?v=5da467367f";
+import { cloudNoise } from "./ts.raster.js?v=5da467367f";
+import { gifEncoder, videoEncoder } from "./encode.js?v=5da467367f";
+import { TABLES_URL } from "./assets.js?v=5da467367f";
 
 const DAY = 2880; // the client's day, in half-minutes
 const DEFAULT_BUILD = "9.2.7.45745";
@@ -940,7 +940,7 @@ async function loadModel(fid, sb, baseOrder, what) {
   return sky;
 }
 
-/** Swap the skybox model for another skybox row's, as a ScreenEffect with LightFlags bit 1 does; null restores the preset's own. */
+/** Swap the skybox model for another skybox row's, as a ScreenEffect naming a preset does; null restores the preset's own. */
 async function swapSkybox(sb) {
   const param = state.light.params[state.paramId];
   const own = state.light.skyboxes[param.skybox];
@@ -961,7 +961,9 @@ async function applyScreen(id, spell) {
   // an effect is drawn over the look view and never over the strip, so asking for one turns the panorama off
   if (row.effect && state.pano) state.pano = false;
   if (row.effect === 6 && row.params[0]) lutTexture(row.params[0]);
-  const lp = row.lightParams && row.lightFlags & 1 ? state.light.params[row.lightParams] : null;
+  // the preset's dome replaces the sky whatever the row's LightFlags say: bit 1 was once read as the gate, and in
+  // game the dome changed for flagged and unflagged rows alike
+  const lp = row.lightParams ? state.light.params[row.lightParams] : null;
   const sb = lp ? state.light.skyboxes[lp.skybox] : null;
   if (sb && sb.fid) await swapSkybox(sb);
   else if (state.screenSkybox) await swapSkybox(null);
