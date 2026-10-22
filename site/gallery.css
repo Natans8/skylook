@@ -81,6 +81,27 @@
 .to-viewer { font: 500 13px/1 var(--sans); color: var(--ink-dim); text-decoration: none; white-space: nowrap; }
 .to-viewer:hover { color: var(--lit); }
 
+/* a swatch puts its colour in the search; the ring says which colours the search holds */
+.swatches { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.swatches-label {
+  margin-right: 6px;
+  font: 500 10px/1 var(--sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #ffffff2e;
+  border-radius: 50%;
+  background: var(--swatch);
+  transition: box-shadow 140ms var(--ease), scale 140ms var(--ease);
+}
+.swatch:hover { scale: 1.12; }
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--void), 0 0 0 4px var(--ink); }
+
 /* ---------------------------------------------------------------- the page */
 
 main { max-width: var(--page); margin: 0 auto; padding: 0 20px 56px; }
@@ -251,6 +272,7 @@ main { max-width: var(--page); margin: 0 auto; padding: 0 20px 56px; }
   .tab .narrow { display: inline; }
   .search { grid-column: 1 / -1; justify-self: stretch; width: 100%; }
   .search kbd, .to-viewer { display: none; }
+  .swatches { justify-content: flex-start; }
   main { padding: 0 12px 44px; }
   .lede { margin: 20px 4px; font-size: 20px; }
   /* a phone is too narrow for the whole turn, so a card shows its middle, which is where its sky was centred */

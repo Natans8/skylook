@@ -22,8 +22,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://wago.tools" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="./base.css?v=3c24d5d384">
-<link rel="stylesheet" href="./app.css?v=3c24d5d384">
+<link rel="stylesheet" href="./base.css?v=e40291d6ff">
+<link rel="stylesheet" href="./app.css?v=e40291d6ff">
 </head>
 <body class="panorama">
 <canvas id="gl" aria-label="The sky, drawn. Drag to look around."></canvas>
@@ -167,7 +167,7 @@
 
 <script type="module">
   // the engine needs WebGL 2; without it the import fails, and the page says so rather than waiting forever
-  import("./app.js?v=3c24d5d384").catch((error) => {
+  import("./app.js?v=e40291d6ff").catch((error) => {
     console.error(error);
     document.getElementById("waiting").hidden = true;
     document.getElementById("sky-name").textContent = "The sky could not be drawn";

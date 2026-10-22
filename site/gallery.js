@@ -1,13 +1,14 @@
 /**
  * The gallery: one wide panorama per skybox model and one picture per distinct screen effect. A picture opens the
  * viewer at the hour it shows, and a card carries the commands that put it in the game. The pictures and
- * `index.json` are written by `gallery_batch.js`.
+ * `index.json` are written by `gallery_batch.js`, and `colours.json`, what colours each picture holds, by
+ * `gallery_colours.py`.
  */
 
-import {CONDITIONS} from "./ts.gallerycards.js?v=3c24d5d384";
-import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=3c24d5d384";
-import {readable} from "./lit.js?v=3c24d5d384";
-import {EXTREME_MOTION, loadMotion, motionWarning} from "./motion.js?v=3c24d5d384";
+import {CONDITIONS} from "./ts.gallerycards.js?v=e40291d6ff";
+import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=e40291d6ff";
+import {readable} from "./lit.js?v=e40291d6ff";
+import {EXTREME_MOTION, loadMotion, motionWarning} from "./motion.js?v=e40291d6ff";
 
 const params = new URLSearchParams(location.search);
 const BUILD = params.get("build") || "9.2.7.45745";
@@ -39,8 +40,21 @@ try {
     throw new Error(`no gallery index for ${BUILD}`);
 }
 
-// how much each sky moves by itself, measured once for the whole gallery; a gallery without the record warns of nothing
-const motion = await loadMotion(BUILD);
+/** What colours each picture holds, as a percentage per swatch, or null where a build has no record. */
+async function loadColours(build) {
+    try {
+        const res = await fetch(`./data/gallery/${build}/colours.json`);
+        if (!res.ok) return null;
+        const record = await res.json();
+        return {...record, index: new Map(record.colours.map((c, k) => [c.name, k]))};
+    } catch {
+        return null;
+    }
+}
+
+// how much each sky moves by itself and what colours it holds, each measured once for the whole gallery; a gallery
+// without a record warns of nothing and finds nothing by colour
+const [motion, colours] = await Promise.all([loadMotion(BUILD), loadColours(BUILD)]);
 const picture = (kind, name) => `./data/gallery/${BUILD}/${kind}/${name}.${index.format || "png"}`;
 const inViewer = (hash) => `./sky.html#b=${index.build}&${hash}`;
 
@@ -107,7 +121,10 @@ function commandRow(commands) {
     return row;
 }
 
-/** The rail that runs the day: a labelled notch per hour drawn, and the clock on the picture reads it out. */
+/**
+ * The rail that runs the day: a labelled notch per hour drawn, and the clock on the picture reads it out. `turn`
+ * moves it to an hour from outside, as a colour search does.
+ */
 function hourRail(hours, at, show) {
     const rail = element("div", "rail");
     const track = element("div", "track");
@@ -123,17 +140,18 @@ function hourRail(hours, at, show) {
         notches.append(element("i", t === at ? "on" : ""));
         labels.append(element("span", t === at ? "on" : "", hhmm(t).slice(0, 2)));
     }
-    input.addEventListener("input", () => {
-        const i = Number(input.value);
+    const select = (i) => {
+        input.value = String(i);
         input.setAttribute("aria-valuetext", hhmm(hours[i]));
         for (const row of [notches, labels]) {
             for (const [k, mark] of [...row.children].entries()) mark.classList.toggle("on", k === i);
         }
         show(hours[i]);
-    });
+    };
+    input.addEventListener("input", () => select(Number(input.value)));
     track.append(input, notches);
     rail.append(track, labels);
-    return rail;
+    return {rail, input, turn: (t) => select(hours.indexOf(t))};
 }
 
 /** A list read out for a person: the first few, then how many more there were. */
@@ -195,6 +213,12 @@ function sources(s) {
 
 // ---------------------------------------------------------------- the cards
 
+/**
+ * What a colour search reads off each card: the colours of every picture it has, by hour, the way to turn its rail,
+ * the hour it opens at, and whether a search turned it away from there.
+ */
+const shades = new Map();
+
 function skyCard(s) {
     const stem = s.name.split("/").pop().replace(/\.(mdx|m2)$/i, "");
     const card = element("article", "card");
@@ -220,12 +244,18 @@ function skyCard(s) {
         card.dataset.text += " motion";
     }
     info.append(name);
+    const shade = {byHour: colours?.skies[s.skybox], home: noon, turned: false};
+    shades.set(card, shade);
     if (s.hours.length > 1) {
-        info.append(hourRail(s.hours, noon, (t) => {
+        const {rail, input, turn} = hourRail(s.hours, noon, (t) => {
             img.src = picture("sky", `${s.skybox}_${t}`);
             clock.textContent = hhmm(t);
             link.href = at(t);
-        }));
+        });
+        // an hour the reader picks is theirs, and ending the search leaves it where they put it
+        input.addEventListener("input", () => { shade.turned = false; });
+        shade.turn = turn;
+        info.append(rail);
     }
     const place = where(s);
     const line = element("p", "place", place.head);
@@ -247,6 +277,8 @@ function effectCard(e) {
         card.append(element("div", "missing", `${names[0]}: no picture (${e.error})`));
         return card;
     }
+    const shares = colours?.effects[e.full];
+    shades.set(card, {byHour: shares && {0: shares}});
     const {link, img} = shot(inViewer(`p=1952&t=0&se=${e.effects[0].id}&view=look`), `Open ${names[0]} in the viewer`, picture("se", String(e.full)), 640, 360);
     img.addEventListener("load", () => lightCard(card, img));
 
@@ -265,6 +297,8 @@ function effectCard(e) {
 
 for (const s of index.skies) panels.skies.list.append(skyCard(s));
 for (const e of index.effects) panels.effects.list.append(effectCard(e));
+// the gallery's own order, which a colour search rearranges and ending it restores
+for (const p of Object.values(panels)) p.cards = [...p.list.children];
 
 // ---------------------------------------------------------------- tabs, search and the address
 
@@ -298,17 +332,52 @@ function showTab(name, {focus = false, write = true} = {}) {
     if (write) writeAddress();
 }
 
-/** Show the cards every word matches, count them per tab, and give a tab with none a way out. */
+/**
+ * The hour of a card that holds the most of every colour asked, and how much: the least of those colours' shares
+ * there. Null where no hour holds all of them at the record's cut.
+ */
+function strongest(byHour, asked) {
+    let best = null;
+    for (const [hour, shares] of Object.entries(byHour ?? {})) {
+        const score = Math.min(...asked.map((k) => shares[k]));
+        if (score >= colours.match && (!best || score > best.score)) best = {hour: Number(hour), score};
+    }
+    return best;
+}
+
+/**
+ * Show the cards every word matches, count them per tab, and give a tab with none a way out.
+ *
+ * A whole word naming a swatch asks for that colour, so "darkshore" still finds Darkshore. A colour turns each card it
+ * finds to the hour holding the most of it and puts the cards holding the most first; ending the search puts back
+ * the gallery's order and every hour the search moved.
+ */
 function filter({write = true} = {}) {
     const typed = query.value.trim();
     const words = typed.toLowerCase().split(/\s+/).filter(Boolean);
+    const isColour = (w) => colours?.index.has(w) ?? false;
+    const asked = words.filter(isColour).map((w) => colours.index.get(w));
+    const text = words.filter((w) => !isColour(w));
     for (const p of Object.values(panels)) {
         let shown = 0;
-        for (const card of p.list.children) {
-            const hit = words.every((w) => card.dataset.text.includes(w));
+        const found = [];
+        for (const card of p.cards) {
+            const shade = shades.get(card);
+            const best = asked.length ? strongest(shade?.byHour, asked) : null;
+            const hit = text.every((w) => card.dataset.text.includes(w)) && (!asked.length || best !== null);
             card.hidden = !hit;
             if (hit) shown++;
+            if (hit && best && shade.turn) {
+                shade.turn(best.hour);
+                shade.turned = best.hour !== shade.home;
+            } else if (!asked.length && shade?.turned) {
+                shade.turn(shade.home);
+                shade.turned = false;
+            }
+            found.push({card, score: best?.score ?? 0});
         }
+        const order = asked.length ? found.sort((a, b) => b.score - a.score).map((f) => f.card) : p.cards;
+        if (order.some((card, k) => p.list.children[k] !== card)) p.list.append(...order);
         p.count.textContent = String(shown);
         p.empty.hidden = shown > 0;
         if (shown) continue;
@@ -320,7 +389,32 @@ function filter({write = true} = {}) {
             p.empty.append(clear);
         }
     }
+    for (const swatch of swatches) swatch.setAttribute("aria-pressed", String(words.includes(swatch.dataset.colour)));
     if (write) writeAddress();
+}
+
+/** A swatch puts its colour's word in the search or takes it out, so a colour search is shared like any other. */
+const swatches = (colours?.colours ?? []).map(({name, swatch}) => {
+    const button = element("button", "swatch");
+    button.type = "button";
+    button.dataset.colour = name;
+    button.style.setProperty("--swatch", swatch);
+    button.title = name[0].toUpperCase() + name.slice(1);
+    button.setAttribute("aria-label", button.title);
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => {
+        const words = query.value.trim().split(/\s+/).filter(Boolean);
+        const at = words.findIndex((w) => w.toLowerCase() === name);
+        if (at >= 0) words.splice(at, 1);
+        else words.push(name);
+        query.value = words.join(" ");
+        filter();
+    });
+    return button;
+});
+if (swatches.length) {
+    $("swatches").append(...swatches);
+    $("swatches").hidden = false;
 }
 
 for (const [name, p] of Object.entries(panels)) p.tab.addEventListener("click", () => showTab(name));
