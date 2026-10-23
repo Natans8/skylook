@@ -5,10 +5,10 @@
  * `gallery_colours.py`.
  */
 
-import {CONDITIONS} from "./ts.gallerycards.js?v=e40291d6ff";
-import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=e40291d6ff";
-import {readable} from "./lit.js?v=e40291d6ff";
-import {EXTREME_MOTION, loadMotion, motionWarning} from "./motion.js?v=e40291d6ff";
+import {CONDITIONS} from "./ts.gallerycards.js?v=2b611090a8";
+import {commandButtons, effectCommands, listenForCommands, skyCommands} from "./commands.js?v=2b611090a8";
+import {readable} from "./lit.js?v=2b611090a8";
+import {EXTREME_MOTION, loadMotion, motionWarning} from "./motion.js?v=2b611090a8";
 
 const params = new URLSearchParams(location.search);
 const BUILD = params.get("build") || "9.2.7.45745";
